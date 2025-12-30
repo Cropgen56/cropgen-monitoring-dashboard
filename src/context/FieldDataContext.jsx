@@ -243,7 +243,7 @@ function buildFieldData(features, selectedCrop, selectedSampleFieldId) {
   };
 }
 
-export function FieldDataProvider({ children }) {
+export function FieldDataProvider({ children, farms }) {
   const [sampleFields, setSampleFields] = useState(null);
   const [selectedCrop, setSelectedCrop] = useState("");
   const [selectedSampleFieldId, setSelectedSampleFieldId] = useState(null);

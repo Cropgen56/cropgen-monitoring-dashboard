@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ---- TAILWIND THEME TOKENS ---- */
+
 @theme {
   --color-cg-bg: #1A3123;
   --color-cg-panel: #0c2214;

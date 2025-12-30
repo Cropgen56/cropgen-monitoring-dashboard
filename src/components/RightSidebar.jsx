@@ -365,7 +365,7 @@ export default function RightSidebar({ onFileUpload, onSnapshotClick }) {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }

@@ -235,7 +235,7 @@ export default function MapOverlays({
       {/* Bottom - Date Selector */}
       <DateSelector />
 
-      <style jsx>{`
+      <style>{`
         @keyframes slide-in {
           from {
             transform: translateX(400px);

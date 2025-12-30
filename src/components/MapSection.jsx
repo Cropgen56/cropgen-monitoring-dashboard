@@ -161,6 +161,7 @@ const ManualMarkerHandler = ({ isAdding, onAddMarker }) => {
 };
 
 export default function MapSection({
+  farms =[],
   uploadedData,
   externalLocation,
   onLocationChange,
