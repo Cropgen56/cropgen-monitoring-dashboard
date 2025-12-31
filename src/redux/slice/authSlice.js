@@ -21,6 +21,7 @@ export const refreshAccessToken = createAsyncThunk(
         throw new Error("No access token in response");
       }
 
+      console.log("Token refreshed successfully:", response.data);
       return response.data;
     } catch (error) {
       return rejectWithValue(

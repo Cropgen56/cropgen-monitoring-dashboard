@@ -16,7 +16,7 @@ import LocationModal from "./LocationModal";
 import MapControls from "./MapControls";
 import MapOverlays from "./MapOverlays";
 
-/* ---------------- Leaflet marker fix ---------------- */
+/*  Leaflet marker fix  */
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl:
@@ -27,7 +27,7 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-/* ---------------- Custom marker ---------------- */
+/*  Custom marker  */
 const yellowMarkerIcon = new L.divIcon({
   className: "yellow-marker",
   html: `<div style="
@@ -46,7 +46,7 @@ const yellowMarkerIcon = new L.divIcon({
   iconAnchor: [12, 12],
 });
 
-/* ---------------- Map helpers ---------------- */
+/*  Map helpers  */
 const MoveMap = ({ center, bounds, onDone }) => {
   const map = useMap();
   const prevRef = useRef(null);
@@ -76,10 +76,6 @@ const ManualMarkerHandler = ({ enabled, onAdd }) => {
   return null;
 };
 
-/* =====================================================
-   ================== COMPONENT =========================
-===================================================== */
-
 export default function MapSection({
   farms,
   selectedCrop,
@@ -94,14 +90,30 @@ export default function MapSection({
   const [manualMarkers, setManualMarkers] = useState([]);
   const [manualArea, setManualArea] = useState(0);
   const [isAddingManual, setIsAddingManual] = useState(false);
+  const mapWrapperRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const [toast, setToast] = useState(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState("NDVI");
+  const [selectedCountry, setSelectedCountry] = useState("");
+
+  const COUNTRIES = [
+    "India",
+    "South Africa",
+    "Zimbabwe",
+    "Australia",
+    "United States",
+    "United Kingdom",
+    "Canada",
+    "Germany",
+    "Brazil",
+    "Japan",
+  ];
 
   const mapRef = useRef(null);
 
-  /* ---------------- farms → GeoJSON ---------------- */
+  /*  farms → GeoJSON  */
   const farmsToGeoJSON = (farms = []) => ({
     type: "FeatureCollection",
     features: farms.map((farm) => ({
@@ -129,7 +141,7 @@ export default function MapSection({
     return farmsToGeoJSON(filtered);
   }, [farms, selectedCrop]);
 
-  /* ---------------- Auto bounds ---------------- */
+  /*  Auto bounds  */
   const bounds = useMemo(() => {
     if (!geoJsonData?.features?.length) return null;
 
@@ -158,7 +170,7 @@ export default function MapSection({
     if (bounds) setFitBounds(true);
   }, [bounds]);
 
-  /* ---------------- Manual area calc ---------------- */
+  /*  Manual area calc  */
   useEffect(() => {
     if (manualMarkers.length < 3) {
       setManualArea(0);
@@ -192,6 +204,32 @@ export default function MapSection({
     });
   }, [selectedSavedField]);
 
+    const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      mapWrapperRef.current?.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  useEffect(() => {
+  const handleFullscreenChange = () => {
+    const isFs = !!document.fullscreenElement;
+    setIsFullscreen(isFs);
+
+    if (mapRef.current) {
+      setTimeout(() => {
+        mapRef.current.invalidateSize();
+      }, 300);
+    }
+  };
+
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
+  return () =>
+    document.removeEventListener("fullscreenchange", handleFullscreenChange);
+}, []);
+
+
   const handleZoomIn = () => {
     if (mapRef.current) {
       mapRef.current.zoomIn();
@@ -220,20 +258,6 @@ export default function MapSection({
       type: "success",
     });
   };
-
-  // const handleSaveBoundary = () => {
-  //   if (manualMarkers.length < 3) {
-  //     setToast({
-  //       message: "Please draw a field boundary first",
-  //       type: "error",
-  //     });
-  //     return;
-  //   }
-  //   setToast({
-  //     message: "Field saved successfully",
-  //     type: "success",
-  //   });
-  // };
 
   const handleSaveBoundary = () => {
     if (manualMarkers.length < 3) {
@@ -273,10 +297,13 @@ export default function MapSection({
     });
   };
 
-  /* ---------------- Render ---------------- */
+
   return (
     <>
-      <div className="bg-cg-panel rounded-xl h-[500px] relative overflow-hidden">
+      <div
+        ref={mapWrapperRef}
+        className="bg-cg-panel rounded-xl h-[500px] relative overflow-hidden"
+      >
         <MapContainer
           center={mapCenter}
           zoom={5}
@@ -352,6 +379,11 @@ export default function MapSection({
           onClearAllMarkers={handleClearMarkers}
           onSaveBoundary={handleSaveBoundary}
           onOpenLocationModal={() => setShowLocationModal(true)}
+          countries={COUNTRIES}
+          selectedCountry={selectedCountry}
+          onCountryChange={setSelectedCountry}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={toggleFullscreen}
         />
 
         <MapOverlays

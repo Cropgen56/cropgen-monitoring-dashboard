@@ -92,14 +92,13 @@ export default function Dashboard() {
             </div>
 
             <MapSection
-              selectedCountry={selectedCountry}
-
               farms={farms}
               selectedCrop={selectedCrop}
               externalLocation={mapLocation}
               onFieldSave={handleFieldSave}
               savedFields={savedFields}
               selectedSavedField={selectedSavedField}
+              selectedCountry={selectedCountry}
 
               // uploadedData={uploadedFileData}
               // onLocationChange={handleLocationChange}
@@ -108,7 +107,7 @@ export default function Dashboard() {
             />
 
             <div className="mt-3 sm:mt-4 md:mt-6">
-              {/* <DashboardCards /> */}
+              <DashboardCards selectedCrop={selectedCrop} />
             </div>
           </div>
 
@@ -116,8 +115,8 @@ export default function Dashboard() {
           <div className="col-span-4 xl:col-span-4 2xl:col-span-3">
             <RightSidebar
               farms={farms}
-              selectedCrop={selectedCrop} // 👈 pass
-              onCropChange={setSelectedCrop} // 👈 pass
+              selectedCrop={selectedCrop}
+              onCropChange={setSelectedCrop}
               savedFields={savedFields}
               onDeleteField={handleDeleteField}
               onSelectField={setSelectedSavedField}
@@ -142,13 +141,12 @@ export default function Dashboard() {
 
         <MapSection
           farms={farms}
-          selectedCountry={selectedCountry}
-
           selectedCrop={selectedCrop}
           externalLocation={mapLocation}
           onFieldSave={handleFieldSave}
           savedFields={savedFields}
           selectedSavedField={selectedSavedField}
+          selectedCountry={selectedCountry}
 
           // uploadedData={uploadedFileData}
           // onLocationChange={handleLocationChange}
@@ -156,21 +154,20 @@ export default function Dashboard() {
           // selectedSnapshot={selectedSnapshot}
         />
 
-        {/* <DashboardCards />
-            <SoilHealth />
+        <DashboardCards selectedCrop={selectedCrop} />
+            {/* <SoilHealth />
             <TimeSeriesCharts /> */}
 
         <RightSidebar
           farms={farms}
-          selectedCrop={selectedCrop} // 👈 pass
-          onCropChange={setSelectedCrop} // 👈 pass
+          selectedCrop={selectedCrop}
+          onCropChange={setSelectedCrop}
           savedFields={savedFields}
           onDeleteField={handleDeleteField}
           onSelectField={setSelectedSavedField}
           selectedFieldId={selectedFieldId}
           selectedCountry={selectedCountry}
           onCountryChange={setSelectedCountry}
-
           onFileUpload={handleFileUpload}
           onSnapshotClick={handleSnapshotClick}
         />

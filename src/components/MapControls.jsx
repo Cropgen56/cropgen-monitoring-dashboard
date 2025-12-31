@@ -8,6 +8,8 @@ import {
   Undo,
   Trash2,
   Save,
+  Minimize2,
+  Maximize2,
 } from "lucide-react";
 
 export default function MapControls({
@@ -24,10 +26,14 @@ export default function MapControls({
   fieldOptions = [],
   selectedFieldId,
   onFieldChange,
+  selectedCountry,
+  onCountryChange,
+  countries = [],
+  isFullscreen,
+  onToggleFullscreen,
 }) {
   return (
     <>
-      {/* Left Side - Zoom Controls */}
       <div className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-[1000] flex flex-col gap-2">
         <button
           onClick={onZoomIn}
@@ -89,25 +95,42 @@ export default function MapControls({
       </div>
 
       {/* Top Controls */}
-      <div className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[1000] flex items-center justify-between gap-2">
+      <div
+        className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[1000] 
+                flex items-center justify-between gap-2"
+      >
+        {/* LEFT GROUP */}
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenLocationModal}
-            className="bg-cg-panel/95 backdrop-blur-md text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-xl border border-green-500/20 hover:border-green-500/40 hover:bg-cg-panel hover:scale-[1.02] text-xs sm:text-sm cursor-pointer"
+            className="bg-cg-panel/95 backdrop-blur-md text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg 
+                 font-semibold flex items-center gap-2 shadow-lg border border-green-500/20 
+                 hover:border-green-500/40 hover:bg-cg-panel cursor-pointer"
           >
             <MapPin size={16} className="text-green-400" />
             <span className="hidden sm:inline">Set Location</span>
-            <span className="sm:hidden">Location</span>
           </button>
 
-          {/* Field selector (All fields / Field X) */}
+          <select
+            value={selectedCountry || ""}
+            onChange={(e) => onCountryChange?.(e.target.value)}
+            className="bg-cg-panel/95 text-white px-3 py-2 rounded-lg border border-green-500/20 
+                 hover:border-green-500/40 cursor-pointer"
+          >
+            <option value="">All Countries</option>
+            {countries.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+
           {fieldOptions.length > 0 && (
             <select
               value={selectedFieldId || ""}
-              onChange={(e) =>
-                onFieldChange && onFieldChange(e.target.value || null)
-              }
-              className="bg-cg-panel/95 text-white text-xs sm:text-sm px-3 py-2 rounded-lg border border-green-500/20 hover:border-green-500/40 focus:outline-none cursor-pointer"
+              onChange={(e) => onFieldChange?.(e.target.value || null)}
+              className="bg-cg-panel/95 text-white text-sm px-3 py-2 rounded-lg 
+                   border border-green-500/20 hover:border-green-500/40 cursor-pointer"
             >
               <option value="">All fields</option>
               {fieldOptions.map((opt) => (
@@ -119,36 +142,49 @@ export default function MapControls({
           )}
         </div>
 
-        <button
-          onClick={onGenerateField}
-          disabled={isGenerating}
-          className={`
-            bg-cg-panel/95 backdrop-blur-md text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg font-semibold 
-            flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-xl
-            text-xs sm:text-sm border border-green-500/20 hover:border-green-500/40
-            ${
-              isGenerating
-                ? "opacity-75 cursor-wait"
-                : "hover:bg-cg-panel hover:scale-[1.02] cursor-pointer"
-            }
-          `}
-        >
-          {isGenerating ? (
-            <>
-              <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
-              <span className="hidden sm:inline">Generating...</span>
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} className="text-green-400" />
-              <span className="hidden xl:inline">Generate Sample Fields</span>
-              <span className="xl:hidden hidden sm:inline">
-                Generate Fields
-              </span>
-              <span className="sm:hidden">Gen</span>
-            </>
-          )}
-        </button>
+        {/* RIGHT GROUP */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onGenerateField}
+            disabled={isGenerating}
+            className={`
+        bg-cg-panel/95 backdrop-blur-md text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg 
+        font-semibold flex items-center gap-2 shadow-lg border border-green-500/20
+        ${
+          isGenerating
+            ? "opacity-75 cursor-wait"
+            : "hover:border-green-500/40 hover:bg-cg-panel hover:scale-[1.02] cursor-pointer"
+        }
+      `}
+          >
+            {isGenerating ? (
+              <>
+                <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin" />
+                <span className="hidden sm:inline">Generating…</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={16} className="text-green-400" />
+                <span className="hidden xl:inline">Generate Sample Fields</span>
+                <span className="xl:hidden sm:inline hidden">
+                  Generate Fields
+                </span>
+                <span className="sm:hidden">Gen</span>
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={onToggleFullscreen}
+            className="bg-cg-panel/90 text-white w-10 h-10 rounded-lg 
+                 flex items-center justify-center shadow-md transition-all 
+                 hover:scale-105 active:scale-95 border border-green-500/20 
+                 hover:border-green-500/40 hover:bg-cg-panel cursor-pointer"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          >
+            {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+        </div>
       </div>
     </>
   );
