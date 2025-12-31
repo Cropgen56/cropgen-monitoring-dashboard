@@ -98,6 +98,41 @@ export default function MapSection({
   const [selectedIndex, setSelectedIndex] = useState("NDVI");
   const [selectedCountry, setSelectedCountry] = useState("");
 
+  const [selectedFieldId, setSelectedFieldId] = useState(null);
+
+  const cropFarms = useMemo(() => {
+    if (!selectedCrop) return farms;
+    return farms.filter(
+      (f) => f.cropName.toLowerCase() === selectedCrop.toLowerCase()
+    );
+  }, [farms, selectedCrop]);
+
+  // 2️⃣ Build field dropdown options
+  const fieldOptions = useMemo(() => {
+    return cropFarms.map((farm) => ({
+      id: farm._id,
+      name: farm.fieldName,
+      polygon: farm.field,
+    }));
+  }, [cropFarms]);
+
+  // 3️⃣ Selected field polygon
+  const selectedField = useMemo(() => {
+    return fieldOptions.find((f) => f.id === selectedFieldId);
+  }, [fieldOptions, selectedFieldId]);
+
+  useEffect(() => {
+    if (!selectedField?.polygon?.length) return;
+    if (!mapRef.current) return;
+
+    const bounds = selectedField.polygon.map((p) => [p.lat, p.lng]);
+
+    mapRef.current.fitBounds(bounds, {
+      padding: [40, 40],
+      animate: true,
+    });
+  }, [selectedField]);
+
   const COUNTRIES = [
     "India",
     "South Africa",
@@ -204,7 +239,7 @@ export default function MapSection({
     });
   }, [selectedSavedField]);
 
-    const toggleFullscreen = () => {
+  const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       mapWrapperRef.current?.requestFullscreen();
     } else {
@@ -213,22 +248,21 @@ export default function MapSection({
   };
 
   useEffect(() => {
-  const handleFullscreenChange = () => {
-    const isFs = !!document.fullscreenElement;
-    setIsFullscreen(isFs);
+    const handleFullscreenChange = () => {
+      const isFs = !!document.fullscreenElement;
+      setIsFullscreen(isFs);
 
-    if (mapRef.current) {
-      setTimeout(() => {
-        mapRef.current.invalidateSize();
-      }, 300);
-    }
-  };
+      if (mapRef.current) {
+        setTimeout(() => {
+          mapRef.current.invalidateSize();
+        }, 300);
+      }
+    };
 
-  document.addEventListener("fullscreenchange", handleFullscreenChange);
-  return () =>
-    document.removeEventListener("fullscreenchange", handleFullscreenChange);
-}, []);
-
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   const handleZoomIn = () => {
     if (mapRef.current) {
@@ -297,7 +331,6 @@ export default function MapSection({
     });
   };
 
-
   return (
     <>
       <div
@@ -327,9 +360,22 @@ export default function MapSection({
               key={selectedCrop || "all"}
               data={geoJsonData}
               style={{
+                color: "#fbc02d",
+                weight: 3,
+                fillOpacity: 0.3,
+                fillColor: "#fbc02d",
+              }}
+            />
+          )}
+
+          {selectedField?.polygon?.length >= 3 && (
+            <Polygon
+              positions={selectedField.polygon.map((p) => [p.lat, p.lng])}
+              pathOptions={{
                 color: "#22c55e",
-                weight: 2,
-                fillOpacity: 0.4,
+                weight: 4,
+                fillColor: "#22c55e   ",
+                fillOpacity: 0.55,
               }}
             />
           )}
@@ -384,6 +430,9 @@ export default function MapSection({
           onCountryChange={setSelectedCountry}
           isFullscreen={isFullscreen}
           onToggleFullscreen={toggleFullscreen}
+          fieldOptions={fieldOptions}
+          selectedFieldId={selectedFieldId}
+          onFieldChange={setSelectedFieldId}
         />
 
         <MapOverlays

@@ -125,7 +125,7 @@ export default function MapControls({
             ))}
           </select>
 
-          {fieldOptions.length > 0 && (
+          {/* {fieldOptions.length > 0 && (
             <select
               value={selectedFieldId || ""}
               onChange={(e) => onFieldChange?.(e.target.value || null)}
@@ -136,6 +136,20 @@ export default function MapControls({
               {fieldOptions.map((opt) => (
                 <option key={opt.id} value={opt.id}>
                   {opt.name}
+                </option>
+              ))}
+            </select>
+          )} */}
+          {fieldOptions.length > 0 && (
+            <select
+              value={selectedFieldId || ""}
+              onChange={(e) => onFieldChange(e.target.value)}
+              className="bg-cg-panel text-white px-3 py-2 rounded-lg border border-green-500/20"
+            >
+              <option value="">Select Field</option>
+              {fieldOptions.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
                 </option>
               ))}
             </select>
