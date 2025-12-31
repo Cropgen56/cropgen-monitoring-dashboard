@@ -21,7 +21,7 @@ export const refreshAccessToken = createAsyncThunk(
         throw new Error("No access token in response");
       }
 
-      return response.data; 
+      return response.data;
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message || error.message || "Token refresh failed"
@@ -30,7 +30,7 @@ export const refreshAccessToken = createAsyncThunk(
   }
 );
 
-// Async thunk: login 
+// Async thunk: login
 export const loginUser = createAsyncThunk(
   "auth/login",
   async (credentials, { rejectWithValue }) => {
@@ -40,7 +40,7 @@ export const loginUser = createAsyncThunk(
         credentials,
         { withCredentials: true }
       );
-      return response.data; 
+      return response.data;
     } catch (error) {
       return rejectWithValue(
         error.response?.data || { message: "Login failed. Please try again." }
@@ -49,7 +49,7 @@ export const loginUser = createAsyncThunk(
   }
 );
 
-// Send OTP 
+// Send OTP
 export const sendOtp = createAsyncThunk(
   "auth/sendOtp",
   async ({ email, token }, { rejectWithValue }) => {
@@ -73,7 +73,7 @@ export const sendOtp = createAsyncThunk(
   }
 );
 
-// Verify OTP 
+// Verify OTP
 export const verifyOtp = createAsyncThunk(
   "auth/verifyOtp",
   async ({ email, otp }, { rejectWithValue }) => {
@@ -83,7 +83,7 @@ export const verifyOtp = createAsyncThunk(
         { email, otp },
         { withCredentials: true }
       );
-      return response.data; 
+      return response.data;
     } catch (error) {
       return rejectWithValue(
         error.response?.data || { message: "OTP verification failed" }
@@ -135,6 +135,71 @@ export const getAllUsers = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data || { message: "Failed to fetch user details." }
+      );
+    }
+  }
+);
+
+// Update user
+export const updateUser = createAsyncThunk(
+  "auth/updateUser",
+  async ({ token, id, updateData }, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(
+        `${BASE_URL}/api/auth/update-user/${id}`,
+        updateData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: "Failed to update user." }
+      );
+    }
+  }
+);
+
+export const uploadAvatar = createAsyncThunk(
+  "auth/uploadAvatar",
+  async ({ file, onProgress }, { getState, rejectWithValue }) => {
+    try {
+      const token = getState().auth.token;
+      if (!token) throw new Error("No access token");
+
+      // Get presigned URL
+      const presignRes = await axios.post(
+        `${BASE_URL}/api/auth/avatar-presign`,
+        { fileType: file.type },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const { uploadUrl, key } = presignRes.data.data;
+
+      // Upload to S3 with progress
+      await axios.put(uploadUrl, file, {
+        headers: {
+          "Content-Type": file.type,
+        },
+        onUploadProgress: (e) => {
+          const percent = Math.round((e.loaded * 100) / e.total);
+          onProgress(percent);
+        },
+      });
+
+      return { key };
+    } catch (err) {
+      return rejectWithValue(
+        err.response?.data?.message || "Avatar upload failed"
       );
     }
   }
@@ -194,7 +259,7 @@ const authSlice = createSlice({
         state.loading.refresh = false;
       })
 
-      // Login 
+      // Login
       .addCase(loginUser.pending, (state) => {
         state.isError = false;
         state.errorMessage = "";
@@ -236,7 +301,7 @@ const authSlice = createSlice({
         state.errorMessage = action.payload?.message || "Failed to send OTP";
       })
 
-      // Verify OTP 
+      // Verify OTP
       .addCase(verifyOtp.pending, (state) => {
         state.loading.verifyOtp = true;
         state.isError = false;
@@ -289,6 +354,41 @@ const authSlice = createSlice({
         state.isError = true;
         state.errorMessage =
           action.payload?.message || "Failed to fetch user profile";
+      })
+      // Update user
+      .addCase(updateUser.pending, (state) => {
+        state.loading.updateUser = true;
+      })
+      .addCase(updateUser.fulfilled, (state, action) => {
+        state.loading.updateUser = false;
+        if (state.farmers) {
+          state.farmers = state.farmers.map((farmer) =>
+            farmer._id === action.payload.user._id
+              ? action.payload?.user
+              : farmer
+          );
+        }
+      })
+      .addCase(updateUser.rejected, (state, action) => {
+        state.loading.updateUser = false;
+        state.errorMessage =
+          action.payload?.message || "Failed to update user.";
+      })
+      // Upload avatar
+      .addCase(uploadAvatar.pending, (state) => {
+        state.loading.user = true;
+      })
+      .addCase(uploadAvatar.fulfilled, (state, action) => {
+        state.loading.user = false;
+
+        if (state.user) {
+          state.user.avatar = action.payload.key;
+        }
+      })
+      .addCase(uploadAvatar.rejected, (state, action) => {
+        state.loading.user = false;
+        state.isError = true;
+        state.errorMessage = action.payload;
       });
   },
 });

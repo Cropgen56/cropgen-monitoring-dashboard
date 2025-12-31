@@ -1,13 +1,16 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "axios";
 
+let BASE_URL = "https://server.cropgenapp.com/v1";
+
+
 // Get ALL fields (farms)
 export const getAllFields = createAsyncThunk(
   "farm/getAllFields",
   async (token, { rejectWithValue }) => {
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/api/field/get-all-field`,
+        `${BASE_URL}/api/field/get-all-field`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -29,7 +32,7 @@ export const getFarmsByFarmerId = createAsyncThunk(
   async ({ id, token }, { rejectWithValue }) => {
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_API_BASE_URL}/api/field/get-field/${id}`,
+        `${BASE_URL}/api/field/get-field/${id}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }

@@ -829,7 +829,7 @@ const LocationModal = ({ isOpen, onClose, onLocationSelect }) => {
       </div>
 
       {/* Add animation styles */}
-      <style jsx>{`
+      <style>{`
         @keyframes slideDown {
           from {
             opacity: 0;
