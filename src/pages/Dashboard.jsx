@@ -22,7 +22,7 @@ export default function Dashboard() {
   const selectedFieldId = selectedSavedField?.id || null;
 
   const dispatch = useDispatch();
-  const { token } = useSelector((state) => state.auth);
+  const { token, user } = useSelector((state) => state.auth);
   const { farms, loading } = useSelector((state) => state.farm);
 
   useEffect(() => {
@@ -32,15 +32,22 @@ export default function Dashboard() {
   }, [token, dispatch]);
 
   useEffect(() => {
-    const stored = localStorage.getItem("savedFields");
+    if (!user?._id) return;
+
+    const stored = localStorage.getItem(`savedFields_${user._id}`);
     if (stored) {
       setSavedFields(JSON.parse(stored));
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    localStorage.setItem("savedFields", JSON.stringify(savedFields));
-  }, [savedFields]);
+    if (!user?._id) return;
+
+    localStorage.setItem(
+      `savedFields_${user._id}`,
+      JSON.stringify(savedFields)
+    );
+  }, [savedFields, user]);
 
   const handleFileUpload = (fileData) => {
     console.log("App received file upload:", fileData);
@@ -155,7 +162,7 @@ export default function Dashboard() {
         />
 
         <DashboardCards selectedCrop={selectedCrop} />
-            {/* <SoilHealth />
+        {/* <SoilHealth />
             <TimeSeriesCharts /> */}
 
         <RightSidebar

@@ -7,10 +7,7 @@ import Login from "./pages/Login";
 import Profile from "./pages/Profile";
 import Header from "./components/Header";
 
-import {
-  refreshAccessToken,
-  fetchUserProfile,
-} from "./redux/slice/authSlice";
+import { refreshAccessToken, fetchUserProfile } from "./redux/slice/authSlice";
 
 const ProtectedRoute = ({ children }) => {
   const token = useSelector((state) => state.auth.token);
@@ -41,10 +38,11 @@ export default function App() {
       try {
         const res = await dispatch(refreshAccessToken()).unwrap();
         if (res?.accessToken) {
-          await dispatch(fetchUserProfile());
+          // await dispatch(fetchUserProfile());
+          await dispatch(fetchUserProfile(res.accessToken));
         }
-      } catch (err) {
-        console.log("No active session");
+      } catch (error) {
+        console.log("No active session on initial load or refresh failed.");
       } finally {
         setLoading(false);
       }
@@ -59,7 +57,7 @@ export default function App() {
     }
   }, [dispatch, token, user]);
 
-  if (loading) return null; 
+  if (loading) return null;
 
   return (
     <div className="min-h-screen bg-cg-bg font-sans text-sm text-white overflow-x-hidden">

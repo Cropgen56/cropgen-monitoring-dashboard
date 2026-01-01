@@ -251,9 +251,14 @@ const authSlice = createSlice({
       })
       .addCase(refreshAccessToken.fulfilled, (state, action) => {
         state.loading.refresh = false;
-        const { accessToken } = action.payload;
+        const { accessToken, user } = action.payload;
         if (accessToken) {
           state.token = accessToken;
+          api.defaults.headers.Authorization = `Bearer ${accessToken}`;
+        }
+        if (user) {
+          state.user = user;
+          state.role = user.role;
         }
       })
       .addCase(refreshAccessToken.rejected, (state, action) => {

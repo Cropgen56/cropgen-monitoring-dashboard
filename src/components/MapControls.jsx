@@ -97,10 +97,10 @@ export default function MapControls({
       {/* Top Controls */}
       <div
         className="absolute top-2 sm:top-4 left-2 sm:left-4 right-2 sm:right-4 z-[1000] 
-                flex items-center justify-between gap-2"
+                flex flex-col md:flex-row md:items-center md:justify-between gap-2"
       >
         {/* LEFT GROUP */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-2">
           <button
             onClick={onOpenLocationModal}
             className="bg-cg-panel/95 backdrop-blur-md text-white px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg 
@@ -125,26 +125,12 @@ export default function MapControls({
             ))}
           </select>
 
-          {/* {fieldOptions.length > 0 && (
-            <select
-              value={selectedFieldId || ""}
-              onChange={(e) => onFieldChange?.(e.target.value || null)}
-              className="bg-cg-panel/95 text-white text-sm px-3 py-2 rounded-lg 
-                   border border-green-500/20 hover:border-green-500/40 cursor-pointer"
-            >
-              <option value="">All fields</option>
-              {fieldOptions.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.name}
-                </option>
-              ))}
-            </select>
-          )} */}
           {fieldOptions.length > 0 && (
             <select
               value={selectedFieldId || ""}
               onChange={(e) => onFieldChange(e.target.value)}
-              className="bg-cg-panel text-white px-3 py-2 rounded-lg border border-green-500/20"
+              className="bg-cg-panel/95 text-white px-3 py-2 rounded-lg border border-green-500/20 
+                 hover:border-green-500/40 cursor-pointer"
             >
               <option value="">Select Field</option>
               {fieldOptions.map((f) => (
