@@ -1,14 +1,8 @@
-// src/components/TimeSeriesCharts.jsx
 import React from "react";
 import NDVIChart from "./NDVIChart";
 import WaterIndexChart from "./WaterIndexChart";
-import { useFieldData } from "../context/FieldDataContext";
 
 export default function TimeSeriesCharts() {
-  const { fieldData } = useFieldData();
-
-  // Only show when fieldData exists
-  if (!fieldData) return null;
 
   return (
     <div className="space-y-4 sm:space-y-6">

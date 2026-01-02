@@ -7,9 +7,8 @@ import {
   Trash2,
 } from "lucide-react";
 
-const normalizeCropName = (name = "") => {
-  return name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
-};
+const normalizeCropName = (name = "") =>
+  name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
 
 const formatCropLabel = (name = "") => {
   return name
@@ -63,18 +62,16 @@ export default function RightSidebar({
   const ACRE_TO_HECTARE = 0.404685642;
 
   const totalArea = useMemo(() => {
-    if (!Array.isArray(farms)) return 0;
+  if (!Array.isArray(farms)) return 0;
 
-    return farms
-      .filter((farm) => {
-        if (!selectedCrop) return true;
-        return farm.cropName === selectedCrop;
-      })
-      .reduce((sum, farm) => {
-        const acre = Number(farm.acre || 0);
-        return sum + acre * ACRE_TO_HECTARE;
-      }, 0);
-  }, [farms, selectedCrop]);
+  return farms
+    .filter((farm) => {
+      if (!selectedCrop) return true;
+      return normalizeCropName(farm.cropName) === normalizeCropName(selectedCrop);
+    })
+    .reduce((sum, farm) => sum + (Number(farm.acre) || 0) * ACRE_TO_HECTARE, 0);
+}, [farms, selectedCrop]);
+
 
   const metrics = {
     evi: { value: "0.00", change: "0.0", positive: true },

@@ -144,7 +144,7 @@ export default function MapControls({
 
         {/* RIGHT GROUP */}
         <div className="flex items-center gap-2">
-          <button
+          {/* <button
             onClick={onGenerateField}
             disabled={isGenerating}
             className={`
@@ -172,7 +172,7 @@ export default function MapControls({
                 <span className="sm:hidden">Gen</span>
               </>
             )}
-          </button>
+          </button> */}
 
           <button
             onClick={onToggleFullscreen}

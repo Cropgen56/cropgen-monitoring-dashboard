@@ -13,6 +13,9 @@ const DATA = {
   lowIndexFarms: "3",
 };
 
+const normalizeCropName = (name = "") =>
+  name.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
+
 export default function DashboardCards({ selectedCrop }) {
   const { farms } = useSelector((state) => state.farm);
 
@@ -21,24 +24,23 @@ export default function DashboardCards({ selectedCrop }) {
 
     return farms
       .filter((farm) => {
-        if (!selectedCrop) return true;      
-        return farm.cropName === selectedCrop;
+        if (!selectedCrop) return true;
+        return (
+          normalizeCropName(farm.cropName) === normalizeCropName(selectedCrop)
+        );
       })
-      .reduce((sum, farm) => {
-        const acre = Number(farm.acre || 0);
-        return sum + acre * ACRE_TO_HECTARE;
-      }, 0);
+      .reduce(
+        (sum, farm) => sum + (Number(farm.acre) || 0) * ACRE_TO_HECTARE,
+        0
+      );
   }, [farms, selectedCrop]);
-
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 w-full">
       <div className="bg-[#0C2214] rounded-xl p-4 shadow-xl flex justify-between">
         <div>
           <p className="text-gray-400 text-sm mb-2">Avg. NDVI Value</p>
-          <p className="text-white text-xl font-semibold">
-            {DATA.avgNDVI}
-          </p>
+          <p className="text-white text-xl font-semibold">{DATA.avgNDVI}</p>
         </div>
         <img src={ndviIcon} className="w-14 h-14 object-contain" />
       </div>

@@ -9,27 +9,28 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { useFieldData } from "../context/FieldDataContext";
 import { Info } from "lucide-react";
 
-const defaultData = [
-  { date: "Day 1", "2025": 0.45, "2024": 0.42 },
-  { date: "Day 2", "2025": 0.47, "2024": 0.43 },
-  { date: "Day 3", "2025": 0.49, "2024": 0.44 },
-  { date: "Day 4", "2025": 0.51, "2024": 0.46 },
-  { date: "Day 5", "2025": 0.52, "2024": 0.48 },
-  { date: "Day 6", "2025": 0.54, "2024": 0.49 },
-  { date: "Day 7", "2025": 0.56, "2024": 0.51 },
-  { date: "Day 8", "2025": 0.58, "2024": 0.52 },
-  { date: "Day 9", "2025": 0.60, "2024": 0.54 },
-  { date: "Day 10", "2025": 0.62, "2024": 0.55 },
-  { date: "Day 11", "2025": 0.63, "2024": 0.57 },
-  { date: "Day 12", "2025": 0.64, "2024": 0.58 },
-  { date: "Day 13", "2025": 0.65, "2024": 0.60 },
-  { date: "Day 14", "2025": 0.66, "2024": 0.61 },
-  { date: "Day 15", "2025": 0.67, "2024": 0.62 },
+// Static NDVI data (15 days)
+const staticData = [
+  { date: "Day 1", 2025: 0.45, 2024: 0.42 },
+  { date: "Day 2", 2025: 0.47, 2024: 0.43 },
+  { date: "Day 3", 2025: 0.49, 2024: 0.44 },
+  { date: "Day 4", 2025: 0.51, 2024: 0.46 },
+  { date: "Day 5", 2025: 0.52, 2024: 0.48 },
+  { date: "Day 6", 2025: 0.54, 2024: 0.49 },
+  { date: "Day 7", 2025: 0.56, 2024: 0.51 },
+  { date: "Day 8", 2025: 0.58, 2024: 0.52 },
+  { date: "Day 9", 2025: 0.6, 2024: 0.54 },
+  { date: "Day 10", 2025: 0.62, 2024: 0.55 },
+  { date: "Day 11", 2025: 0.63, 2024: 0.57 },
+  { date: "Day 12", 2025: 0.64, 2024: 0.58 },
+  { date: "Day 13", 2025: 0.65, 2024: 0.6 },
+  { date: "Day 14", 2025: 0.66, 2024: 0.61 },
+  { date: "Day 15", 2025: 0.67, 2024: 0.62 },
 ];
 
+// Custom Tooltip
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -58,6 +59,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
+// Custom Legend
 const CustomLegend = () => (
   <div className="flex justify-start gap-6 mb-2 px-4">
     <div className="flex items-center gap-2">
@@ -68,8 +70,7 @@ const CustomLegend = () => (
       <div
         className="w-6 h-0.5 rounded opacity-70"
         style={{
-          background: "#b8e89f",
-          backgroundImage:
+          background:
             "repeating-linear-gradient(to right, #b8e89f 0, #b8e89f 3px, transparent 3px, transparent 6px)",
         }}
       />
@@ -79,58 +80,50 @@ const CustomLegend = () => (
 );
 
 export default function NDVIChart() {
-  const { fieldData } = useFieldData();
-  const data = fieldData?.ndviTimeSeries || defaultData;
+  const data = staticData;
 
   const scrollRef = useRef(null);
   const isDragging = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
 
-  // Calculate summary statistics
+  // Summary statistics
   const summaryData = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { min2025: 0, max2025: 1, mean2025: 0.5, change: 0 };
-    }
-
-    const values2025 = data.map((d) => d["2025"]).filter((v) => v != null);
-    const values2024 = data.map((d) => d["2024"]).filter((v) => v != null);
+    const values2025 = data.map((d) => d["2025"]);
+    const values2024 = data.map((d) => d["2024"]);
 
     const min2025 = Math.min(...values2025);
     const max2025 = Math.max(...values2025);
     const mean2025 = values2025.reduce((a, b) => a + b, 0) / values2025.length;
-
-    const lastValue2025 = values2025[values2025.length - 1];
-    const lastValue2024 = values2024[values2024.length - 1];
-    const change = lastValue2025 - lastValue2024;
+    const change =
+      values2025[values2025.length - 1] - values2024[values2024.length - 1];
 
     return { min2025, max2025, mean2025, change };
   }, [data]);
 
-  // Chart configuration - Updated to show all 15 days
+  // Chart configuration
   const chartConfig = useMemo(() => {
     const length = data.length;
     return {
-      // Minimum 60px per day for 15 days = 900px
       width: Math.max(length * 60, 900),
-      // Show all labels (interval: 0)
       interval: 0,
     };
   }, [data.length]);
 
-  // Y-axis configuration
+  // Y-axis config
   const yAxisConfig = useMemo(() => {
     const { min2025, max2025 } = summaryData;
     const padding = 0.1;
-    const domain = [
-      Math.max(0, Math.floor((min2025 - padding) * 10) / 10),
-      Math.min(1, Math.ceil((max2025 + padding) * 10) / 10),
-    ];
-
-    return { domain, ticks: [0, 0.25, 0.5, 0.75, 1.0] };
+    return {
+      domain: [
+        Math.max(0, Math.floor((min2025 - padding) * 10) / 10),
+        Math.min(1, Math.ceil((max2025 + padding) * 10) / 10),
+      ],
+      ticks: [0, 0.25, 0.5, 0.75, 1.0],
+    };
   }, [summaryData]);
 
-  // Drag scroll handlers
+  // Drag-to-scroll
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -141,21 +134,18 @@ export default function NDVIChart() {
       scrollLeft.current = el.scrollLeft;
       el.style.cursor = "grabbing";
     };
-
     const handleMouseLeave = () => {
       if (isDragging.current) {
         isDragging.current = false;
         el.style.cursor = "grab";
       }
     };
-
     const handleMouseUp = () => {
       if (isDragging.current) {
         isDragging.current = false;
         el.style.cursor = "grab";
       }
     };
-
     const handleMouseMove = (e) => {
       if (!isDragging.current) return;
       e.preventDefault();
@@ -191,7 +181,9 @@ export default function NDVIChart() {
         {/* Summary Card */}
         <div className="w-full lg:w-1/4 flex flex-col items-center justify-center">
           <div className="bg-cg-bg rounded-xl p-4 flex flex-col items-center shadow-md border border-cg-accent/20 h-full w-full justify-around">
-            <h2 className="text-2xl font-bold text-cg-accent">Vegetation Index</h2>
+            <h2 className="text-2xl font-bold text-cg-accent">
+              Vegetation Index
+            </h2>
 
             <button
               className={`${
@@ -239,7 +231,7 @@ export default function NDVIChart() {
           </div>
         </div>
 
-        {/* Chart Container */}
+        {/* Chart */}
         <div className="lg:w-3/4 flex-grow">
           <div className="bg-cg-bg rounded-xl border border-cg-muted/20 p-3">
             <div className="mb-2">
@@ -255,40 +247,39 @@ export default function NDVIChart() {
               style={{ scrollbarWidth: "thin" }}
             >
               <div style={{ minWidth: chartConfig.width }}>
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={250}>
                   <LineChart
                     data={data}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                    margin={{ top: 20, right: 30, left: 10, bottom: 20 }}
                   >
                     <CartesianGrid
                       stroke="#486152"
                       strokeDasharray="3 3"
-                      opacity={0.2}
+                      opacity={0.25}
                       vertical={false}
                     />
+
                     <XAxis
                       dataKey="date"
                       tick={{ fill: "#9fb79f", fontSize: 10 }}
                       tickLine={false}
                       axisLine={{ stroke: "#486152" }}
-                      interval={chartConfig.interval}
-                      dy={8}
-                      angle={0}
-                      textAnchor="middle"
-                      height={50}
+                      interval={0}
+                      dy={10}
                     />
+
                     <YAxis
-                      domain={yAxisConfig.domain}
+                      domain={[0, 0.75]}
+                      ticks={[0.25, 0.5, 0.75]}
                       tick={{ fill: "#9fb79f", fontSize: 11 }}
                       tickLine={false}
                       axisLine={{ stroke: "#486152" }}
-                      ticks={yAxisConfig.ticks}
                       dx={-5}
                     />
+
                     <Tooltip content={<CustomTooltip />} />
                     <Legend content={<CustomLegend />} />
 
-                    {/* 2025 Line - Solid, Theme Accent */}
                     <Line
                       type="monotone"
                       dataKey="2025"
@@ -307,16 +298,14 @@ export default function NDVIChart() {
                         strokeWidth: 2,
                       }}
                       name="2025"
-                      connectNulls={false}
                     />
 
-                    {/* 2024 Line - Dashed, Lighter Green */}
                     <Line
                       type="monotone"
                       dataKey="2024"
                       stroke="#b8e89f"
                       strokeWidth={2.5}
-                      strokeDasharray="5 5"
+                      strokeDasharray="6 6"
                       dot={{
                         r: 3,
                         fill: "#b8e89f",
@@ -330,8 +319,7 @@ export default function NDVIChart() {
                         strokeWidth: 2,
                       }}
                       name="2024"
-                      opacity={0.8}
-                      connectNulls={false}
+                      opacity={0.9}
                     />
                   </LineChart>
                 </ResponsiveContainer>

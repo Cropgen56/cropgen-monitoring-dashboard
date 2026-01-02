@@ -9,25 +9,24 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { useFieldData } from "../context/FieldDataContext";
 import { Info } from "lucide-react";
 
 const defaultData = [
-  { date: "Day 1", "2025": 0.22, "2024": 0.20 },
-  { date: "Day 2", "2025": 0.23, "2024": 0.20 },
-  { date: "Day 3", "2025": 0.23, "2024": 0.21 },
-  { date: "Day 4", "2025": 0.24, "2024": 0.21 },
-  { date: "Day 5", "2025": 0.24, "2024": 0.22 },
-  { date: "Day 6", "2025": 0.25, "2024": 0.22 },
-  { date: "Day 7", "2025": 0.25, "2024": 0.23 },
-  { date: "Day 8", "2025": 0.26, "2024": 0.23 },
-  { date: "Day 9", "2025": 0.26, "2024": 0.24 },
-  { date: "Day 10", "2025": 0.27, "2024": 0.24 },
-  { date: "Day 11", "2025": 0.27, "2024": 0.25 },
-  { date: "Day 12", "2025": 0.26, "2024": 0.25 },
-  { date: "Day 13", "2025": 0.25, "2024": 0.24 },
-  { date: "Day 14", "2025": 0.25, "2024": 0.24 },
-  { date: "Day 15", "2025": 0.24, "2024": 0.23 },
+  { date: "Day 1", 2025: 0.22, 2024: 0.2 },
+  { date: "Day 2", 2025: 0.23, 2024: 0.2 },
+  { date: "Day 3", 2025: 0.23, 2024: 0.21 },
+  { date: "Day 4", 2025: 0.24, 2024: 0.21 },
+  { date: "Day 5", 2025: 0.24, 2024: 0.22 },
+  { date: "Day 6", 2025: 0.25, 2024: 0.22 },
+  { date: "Day 7", 2025: 0.25, 2024: 0.23 },
+  { date: "Day 8", 2025: 0.26, 2024: 0.23 },
+  { date: "Day 9", 2025: 0.26, 2024: 0.24 },
+  { date: "Day 10", 2025: 0.27, 2024: 0.24 },
+  { date: "Day 11", 2025: 0.27, 2024: 0.25 },
+  { date: "Day 12", 2025: 0.26, 2024: 0.25 },
+  { date: "Day 13", 2025: 0.25, 2024: 0.24 },
+  { date: "Day 14", 2025: 0.25, 2024: 0.24 },
+  { date: "Day 15", 2025: 0.24, 2024: 0.23 },
 ];
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -79,111 +78,70 @@ const CustomLegend = () => (
 );
 
 export default function WaterIndexChart() {
-  const { fieldData } = useFieldData();
-  const data = fieldData?.waterIndexTimeSeries || defaultData;
+  // 🔥 Now using only static data
+  const data = defaultData;
 
   const scrollRef = useRef(null);
   const isDragging = useRef(false);
   const startX = useRef(0);
   const scrollLeft = useRef(0);
 
-  // Calculate summary statistics
   const summaryData = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { min2025: 0, max2025: 0.5, mean2025: 0.25, change: 0 };
-    }
-
-    const values2025 = data.map((d) => d["2025"]).filter((v) => v != null);
-    const values2024 = data.map((d) => d["2024"]).filter((v) => v != null);
+    const values2025 = data.map((d) => d["2025"]);
+    const values2024 = data.map((d) => d["2024"]);
 
     const min2025 = Math.min(...values2025);
     const max2025 = Math.max(...values2025);
     const mean2025 = values2025.reduce((a, b) => a + b, 0) / values2025.length;
 
-    const lastValue2025 = values2025[values2025.length - 1];
-    const lastValue2024 = values2024[values2024.length - 1];
-    const change = lastValue2025 - lastValue2024;
+    const change = values2025.at(-1) - values2024.at(-1);
 
     return { min2025, max2025, mean2025, change };
   }, [data]);
 
-  // Chart configuration - Updated to show all 15 days
   const chartConfig = useMemo(() => {
-    const length = data.length;
     return {
-      // Minimum 60px per day for 15 days = 900px
-      width: Math.max(length * 60, 900),
-      // Show all labels (interval: 0)
+      width: Math.max(data.length * 60, 900),
       interval: 0,
     };
   }, [data.length]);
 
-  // Y-axis configuration
-  const yAxisConfig = useMemo(() => {
-    const { min2025, max2025 } = summaryData;
-    const padding = 0.05;
-    const domain = [
-      Math.max(0, Math.floor((min2025 - padding) * 20) / 20),
-      Math.min(0.5, Math.ceil((max2025 + padding) * 20) / 20),
-    ];
-
-    return { domain, ticks: [0, 0.1, 0.2, 0.3, 0.4, 0.5] };
-  }, [summaryData]);
-
-  // Drag scroll handlers
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
 
-    const handleMouseDown = (e) => {
+    const down = (e) => {
       isDragging.current = true;
       startX.current = e.pageX - el.offsetLeft;
       scrollLeft.current = el.scrollLeft;
       el.style.cursor = "grabbing";
     };
-
-    const handleMouseLeave = () => {
-      if (isDragging.current) {
-        isDragging.current = false;
-        el.style.cursor = "grab";
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (isDragging.current) {
-        isDragging.current = false;
-        el.style.cursor = "grab";
-      }
-    };
-
-    const handleMouseMove = (e) => {
+    const leave = () => (isDragging.current = false);
+    const up = () => (isDragging.current = false);
+    const move = (e) => {
       if (!isDragging.current) return;
       e.preventDefault();
       const x = e.pageX - el.offsetLeft;
-      const walk = x - startX.current;
-      el.scrollLeft = scrollLeft.current - walk;
+      el.scrollLeft = scrollLeft.current - (x - startX.current);
     };
 
-    el.addEventListener("mousedown", handleMouseDown);
-    el.addEventListener("mouseleave", handleMouseLeave);
-    el.addEventListener("mouseup", handleMouseUp);
-    el.addEventListener("mousemove", handleMouseMove);
+    el.addEventListener("mousedown", down);
+    el.addEventListener("mouseleave", leave);
+    el.addEventListener("mouseup", up);
+    el.addEventListener("mousemove", move);
 
     return () => {
-      el.removeEventListener("mousedown", handleMouseDown);
-      el.removeEventListener("mouseleave", handleMouseLeave);
-      el.removeEventListener("mouseup", handleMouseUp);
-      el.removeEventListener("mousemove", handleMouseMove);
+      el.removeEventListener("mousedown", down);
+      el.removeEventListener("mouseleave", leave);
+      el.removeEventListener("mouseup", up);
+      el.removeEventListener("mousemove", move);
     };
   }, []);
 
   return (
     <div className="w-full bg-cg-panel rounded-xl shadow-cg-soft overflow-hidden border border-cg-bg/50">
-      {/* Header */}
       <div className="px-4 pt-3 pb-2 border-b border-cg-bg">
-        <h2 className="text-lg font-bold text-white">
-          Water Stress Analysis
-        </h2>
+        <h2 className="text-lg font-bold text-white">Water Stress Analysis</h2>
         <p className="text-xs text-cg-muted">
           Irrigation needs monitoring (15-day period)
         </p>
@@ -193,15 +151,14 @@ export default function WaterIndexChart() {
         {/* Summary Card */}
         <div className="w-full lg:w-1/4 flex flex-col items-center justify-center">
           <div className="bg-cg-bg rounded-xl p-4 flex flex-col items-center shadow-md border border-[#3b82f6]/20 h-full w-full justify-around">
-            <h2 className="text-2xl font-bold text-[#3b82f6]">
-              Water Index
-            </h2>
+            <h2 className="text-2xl font-bold text-[#3b82f6]">Water Index</h2>
 
             <button
-              className={`${summaryData.change >= 0
+              className={`${
+                summaryData.change >= 0
                   ? "bg-[#3b82f6]/20 text-[#3b82f6] border-[#3b82f6]/40"
                   : "bg-cg-accent/20 text-cg-accent border-cg-accent/40"
-                } px-4 py-2 text-sm font-bold rounded-lg mt-2 border transition-all hover:scale-105`}
+              } px-4 py-2 text-sm font-bold rounded-lg mt-2 border transition-all hover:scale-105`}
             >
               {summaryData.change >= 0 ? "+" : ""}
               {summaryData.change.toFixed(3)}
@@ -246,9 +203,7 @@ export default function WaterIndexChart() {
         <div className="lg:w-3/4 flex-grow">
           <div className="bg-cg-bg rounded-xl border border-cg-muted/20 p-3">
             <div className="mb-2">
-              <h3 className="text-base font-bold text-white">
-                Water Index
-              </h3>
+              <h3 className="text-base font-bold text-white">Water Index</h3>
               <p className="text-xs text-cg-muted">
                 Daily progression (15 days) • Scroll to view all →
               </p>
@@ -260,7 +215,7 @@ export default function WaterIndexChart() {
               style={{ scrollbarWidth: "thin" }}
             >
               <div style={{ minWidth: chartConfig.width }}>
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={250}>
                   <LineChart
                     data={data}
                     margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
@@ -283,13 +238,14 @@ export default function WaterIndexChart() {
                       height={50}
                     />
                     <YAxis
-                      domain={yAxisConfig.domain}
+                      domain={[0, 0.5]}
+                      ticks={[0, 0.1, 0.2, 0.3, 0.4, 0.5]}
                       tick={{ fill: "#9fb79f", fontSize: 11 }}
                       tickLine={false}
                       axisLine={{ stroke: "#486152" }}
-                      ticks={yAxisConfig.ticks}
                       dx={-5}
                     />
+
                     <Tooltip content={<CustomTooltip />} />
                     <Legend content={<CustomLegend />} />
 

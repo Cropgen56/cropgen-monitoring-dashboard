@@ -9,6 +9,7 @@ import SearchBar from "../components/SearchBar";
 import { FieldDataProvider } from "../context/FieldDataContext";
 import { useDispatch, useSelector } from "react-redux";
 import { getAllFields } from "../redux/slice/farmSlice";
+import SelectedCropCard from "../components/dashboard/SelectedCropCard";
 
 export default function Dashboard() {
   const [selectedCrop, setSelectedCrop] = useState("");
@@ -137,8 +138,17 @@ export default function Dashboard() {
         </div>
 
         <div className="mt-3 sm:mt-4 md:mt-6 space-y-3 sm:space-y-4 md:space-y-6">
-          {/* <SoilHealth />
-              <TimeSeriesCharts /> */}
+          <SelectedCropCard
+            farms={farms}
+            selectedCrop={selectedCrop}
+            selectedField={selectedSavedField}
+          />
+
+          <SoilHealth
+            selectedCrop={selectedCrop}
+            onCropChange={setSelectedCrop}
+          />
+          <TimeSeriesCharts />
         </div>
       </div>
 
@@ -162,9 +172,6 @@ export default function Dashboard() {
         />
 
         <DashboardCards selectedCrop={selectedCrop} />
-        {/* <SoilHealth />
-            <TimeSeriesCharts /> */}
-
         <RightSidebar
           farms={farms}
           selectedCrop={selectedCrop}
@@ -178,6 +185,19 @@ export default function Dashboard() {
           onFileUpload={handleFileUpload}
           onSnapshotClick={handleSnapshotClick}
         />
+        <SelectedCropCard
+          farms={farms}
+          selectedCrop={selectedCrop}
+          selectedField={selectedSavedField}
+        />
+
+        <SoilHealth
+            selectedCrop={selectedCrop}
+            onCropChange={setSelectedCrop}
+          />
+        {/* <TimeSeriesCharts /> */}
+
+        
       </div>
     </div>
     // </FieldDataProvider>
