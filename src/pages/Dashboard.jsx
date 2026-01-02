@@ -148,7 +148,7 @@ export default function Dashboard() {
             selectedCrop={selectedCrop}
             onCropChange={setSelectedCrop}
           />
-          <TimeSeriesCharts />
+          {selectedCrop && <TimeSeriesCharts selectedCrop={selectedCrop} />}
         </div>
       </div>
 
@@ -192,12 +192,10 @@ export default function Dashboard() {
         />
 
         <SoilHealth
-            selectedCrop={selectedCrop}
-            onCropChange={setSelectedCrop}
-          />
-        {/* <TimeSeriesCharts /> */}
-
-        
+          selectedCrop={selectedCrop}
+          onCropChange={setSelectedCrop}
+        />
+        {selectedCrop && <TimeSeriesCharts selectedCrop={selectedCrop} />}
       </div>
     </div>
     // </FieldDataProvider>
