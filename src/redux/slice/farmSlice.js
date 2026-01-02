@@ -3,18 +3,14 @@ import axios from "axios";
 
 let BASE_URL = "https://server.cropgenapp.com/v1";
 
-
 // Get ALL fields (farms)
 export const getAllFields = createAsyncThunk(
   "farm/getAllFields",
   async (token, { rejectWithValue }) => {
     try {
-      const res = await axios.get(
-        `${BASE_URL}/api/field/get-all-field`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await axios.get(`${BASE_URL}/api/field/get-all-field`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       return res.data.farms || [];
     } catch (err) {
@@ -25,30 +21,6 @@ export const getAllFields = createAsyncThunk(
     }
   }
 );
-
-// Get farms by farmerId
-export const getFarmsByFarmerId = createAsyncThunk(
-  "farm/getFarmsByFarmerId",
-  async ({ id, token }, { rejectWithValue }) => {
-    try {
-      const res = await axios.get(
-        `${BASE_URL}/api/field/get-field/${id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      return res.data.farmFields || [];
-    } catch (err) {
-      console.error("Error fetching farms:", err);
-      console.error("Error Response:", err.response);
-      return rejectWithValue(
-        err.response?.data || { message: "Failed to fetch farms" }
-      );
-    }
-  }
-);
-
 
 const farmSlice = createSlice({
   name: "farm",
@@ -84,21 +56,8 @@ const farmSlice = createSlice({
       .addCase(getAllFields.rejected, (state, action) => {
         state.loading.list = false;
         state.error = action.payload?.message || "Failed to fetch fields";
-      })
-      .addCase(getFarmsByFarmerId.pending, (state) => {
-        state.loading = true;
-        state.error = null;
-      })
-      .addCase(getFarmsByFarmerId.fulfilled, (state, action) => {
-        // console.log("Farms fetched successfully:", action.payload);
-        state.loading = false;
-        state.farms = action.payload;
-      })
-      .addCase(getFarmsByFarmerId.rejected, (state, action) => {
-        console.error("Failed to fetch farms:", action.payload);
-        state.loading = false;
-        state.error = action.payload?.message || "Failed to fetch farms";
-      });  },
+      });
+  },
 });
 
 export const { clearFarms, updateFarm } = farmSlice.actions;

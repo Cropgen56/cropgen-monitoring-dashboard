@@ -6,7 +6,6 @@ import DashboardCards from "../components/DashboardCards";
 import SoilHealth from "../components/SoilHealth";
 import TimeSeriesCharts from "../components/TimeSeriesCharts";
 import SearchBar from "../components/SearchBar";
-import { FieldDataProvider } from "../context/FieldDataContext";
 import { useDispatch, useSelector } from "react-redux";
 import { getAllFields } from "../redux/slice/farmSlice";
 import SelectedCropCard from "../components/dashboard/SelectedCropCard";
@@ -89,7 +88,6 @@ export default function Dashboard() {
   };
 
   return (
-    // <FieldDataProvider farms={farms}>
     <div className="w-full max-w-[2000px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 pb-8 sm:pb-12 md:pb-16">
       {/* Desktop Layout */}
       <div className="hidden lg:block">
@@ -198,6 +196,5 @@ export default function Dashboard() {
         {selectedCrop && <TimeSeriesCharts selectedCrop={selectedCrop} />}
       </div>
     </div>
-    // </FieldDataProvider>
   );
 }

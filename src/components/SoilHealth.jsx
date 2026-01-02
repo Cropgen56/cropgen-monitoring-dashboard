@@ -1,14 +1,21 @@
-import React, { useState, useMemo } from "react";
-import { useSelector } from "react-redux";
+import React, { useState, useMemo, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import wheatCrop from "../assets/wheat.png";
 import SoilHealthChart from "./crophealth/SoilHealthChart";
+import { fetchCrops } from "../redux/slice/cropSlice";
 
 const ACRE_TO_HECTARE = 0.404685642;
 
 export default function SoilHealth({ selectedCrop }) {
   const [autoDetectCrop, setAutoDetectCrop] = useState(true);
-
   const farms = useSelector((state) => state.farm.farms);
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(fetchCrops());
+  }, [dispatch]);
+
+  const { crops, loading } = useSelector((state) => state.crop);
 
   const cropFields = useMemo(() => {
     if (!selectedCrop || !farms) return [];
@@ -40,13 +47,64 @@ export default function SoilHealth({ selectedCrop }) {
     1
   );
 
-  const cropImageSrc = (() => {
-    const crop = (fieldData?.cropName || "wheat").toLowerCase();
-    if (crop === "maize") return "/maize.jpg";
-    if (crop === "tobacco") return "/tobacco.jpg";
-    if (crop === "other") return "/mixed.jpg";
-    return wheatCrop;
-  })();
+  const normalize = (str = "") =>
+    str
+      ?.toLowerCase()
+      ?.replace(/[^a-z0-9]/g, "") // remove spaces & symbols
+      ?.replace(/\s+/g, "")
+      ?.trim();
+
+  const getDistance = (a, b) => {
+    if (!a || !b) return 999;
+    const matrix = Array.from({ length: b.length + 1 }, (_, i) =>
+      Array.from({ length: a.length + 1 }, (_, j) =>
+        i === 0 ? j : j === 0 ? i : 0
+      )
+    );
+
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        matrix[i][j] =
+          b[i - 1] === a[j - 1]
+            ? matrix[i - 1][j - 1]
+            : 1 +
+              Math.min(
+                matrix[i - 1][j],
+                matrix[i][j - 1],
+                matrix[i - 1][j - 1]
+              );
+      }
+    }
+    return matrix[b.length][a.length];
+  };
+
+  const fieldCrop = normalize(fieldData?.cropName);
+
+  let matchedCrop = crops?.find((c) => normalize(c.cropName) === fieldCrop);
+
+  if (!matchedCrop) {
+    matchedCrop = crops?.find((c) => {
+      const crop = normalize(c.cropName);
+      return crop.includes(fieldCrop) || fieldCrop.includes(crop);
+    });
+  }
+
+  if (!matchedCrop) {
+    let bestMatch = null;
+    let bestScore = 999;
+
+    crops?.forEach((c) => {
+      const dist = getDistance(normalize(c.cropName), fieldCrop);
+      if (dist < bestScore) {
+        bestScore = dist;
+        bestMatch = c;
+      }
+    });
+
+    if (bestScore <= 3) matchedCrop = bestMatch;
+  }
+
+  const cropImageSrc = matchedCrop?.cropImage || wheatCrop;
 
   const totalArea = cropFields.reduce(
     (sum, f) => sum + (Number(f.acre) || 0) * ACRE_TO_HECTARE,
@@ -91,7 +149,7 @@ export default function SoilHealth({ selectedCrop }) {
         <img
           src={cropImageSrc}
           alt={fieldData?.cropName || "Crop"}
-          className="w-full sm:w-[140px] md:w-[160px] h-[120px] sm:h-[140px] md:h-[160px] rounded-lg object-cover border border-white/10"
+          className="w-full sm:w-[140px] md:w-[160px] h-[120px] sm:h-[140px] rounded-lg object-contain bg-white border border-white/10"
         />
         <div className="flex-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-x-6 sm:gap-y-2 mb-3">
@@ -112,9 +170,7 @@ export default function SoilHealth({ selectedCrop }) {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-gray-400">AI Predicted Yield:-</span>
-                <span className="font-semibold text-green-400">
-                  N/A
-                </span>
+                <span className="font-semibold text-green-400">N/A</span>
                 {/* <span
                   className={`text-[10px] px-1.5 py-0.5 rounded ${
                     yieldDifference >= 0
@@ -176,16 +232,23 @@ export default function SoilHealth({ selectedCrop }) {
           <div className="flex gap-4 sm:gap-8 mb-4 sm:mb-6">
             <div className="flex items-center gap-2">
               <div className="w-4 h-1 bg-[#4ADE80] rounded" />
-              <span className="text-[10px] sm:text-[11px] text-gray-300">This Year</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-300">
+                This Year
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-1 bg-[#B6F152] rounded" />
-              <span className="text-[10px] sm:text-[11px] text-gray-300">Last Year</span>
+              <span className="text-[10px] sm:text-[11px] text-gray-300">
+                Last Year
+              </span>
             </div>
           </div>
 
           {soilNutrients.map((nutrient) => (
-            <div key={nutrient.symbol} className="flex items-start gap-3 sm:gap-4 mb-6 sm:mb-8">
+            <div
+              key={nutrient.symbol}
+              className="flex items-start gap-3 sm:gap-4 mb-6 sm:mb-8"
+            >
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#73E21D] rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm shrink-0">
                 {nutrient.symbol}
               </div>
@@ -196,22 +259,30 @@ export default function SoilHealth({ selectedCrop }) {
                     <div
                       className="absolute h-full bg-[#4ADE80] rounded-sm"
                       style={{
-                        width: `${(nutrient.thisYear / maxNutrientValue) * 100}%`,
+                        width: `${
+                          (nutrient.thisYear / maxNutrientValue) * 100
+                        }%`,
                       }}
                     />
                   </div>
-                  <span className="text-[10px] sm:text-xs opacity-80 whitespace-nowrap">{nutrient.thisYear}</span>
+                  <span className="text-[10px] sm:text-xs opacity-80 whitespace-nowrap">
+                    {nutrient.thisYear}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative h-1 w-full bg-white/10 rounded-sm">
                     <div
                       className="absolute h-full bg-[#B6F152] rounded-sm"
                       style={{
-                        width: `${(nutrient.lastYear / maxNutrientValue) * 100}%`,
+                        width: `${
+                          (nutrient.lastYear / maxNutrientValue) * 100
+                        }%`,
                       }}
                     />
                   </div>
-                  <span className="text-[10px] sm:text-xs opacity-80 whitespace-nowrap">{nutrient.lastYear}</span>
+                  <span className="text-[10px] sm:text-xs opacity-80 whitespace-nowrap">
+                    {nutrient.lastYear}
+                  </span>
                 </div>
               </div>
             </div>
@@ -219,7 +290,9 @@ export default function SoilHealth({ selectedCrop }) {
         </div>
 
         <div>
-          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Soil Health</h2>
+          <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">
+            Soil Health
+          </h2>
           <SoilHealthChart />
         </div>
       </div>
