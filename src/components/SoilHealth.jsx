@@ -1,8 +1,8 @@
-// src/components/SoilHealth.jsx
 import React, { useState } from "react";
 import wheatCrop from "../assets/wheat.png";
 import SoilHealthChart from "./crophealth/SoilHealthChart";
 import { useFieldData } from "../context/FieldDataContext";
+import { SOYBEAN_CROP_IMAGE_URL } from "../data/cropAssets";
 
 export default function SoilHealth() {
   const [autoDetectCrop, setAutoDetectCrop] = useState(true);
@@ -24,13 +24,14 @@ export default function SoilHealth() {
 
   const maxNutrientValue = Math.max(
     ...soilNutrients.flatMap((n) => [n.thisYear, n.lastYear]),
-    1
+    1,
   );
 
   const cropImageSrc = (() => {
     if (fieldData.cropImage) return fieldData.cropImage;
 
     const crop = (majorCrop || "").toLowerCase();
+    if (crop === "soybean" || crop === "soyabean") return SOYBEAN_CROP_IMAGE_URL;
     if (crop === "maize") return "/maize.jpg";
     if (crop === "tobacco") return "/tobacco.jpg";
     if (crop === "other") return "/mixed.jpg";
@@ -40,9 +41,10 @@ export default function SoilHealth() {
 
   // Calculate yield difference
   const yieldDifference = soilHealthData.aiYield - soilHealthData.standardYield;
-  const yieldDifferencePercent = soilHealthData.standardYield > 0
-    ? ((yieldDifference / soilHealthData.standardYield) * 100).toFixed(1)
-    : 0;
+  const yieldDifferencePercent =
+    soilHealthData.standardYield > 0
+      ? ((yieldDifference / soilHealthData.standardYield) * 100).toFixed(1)
+      : 0;
 
   return (
     <div className="bg-[#0C2214] rounded-xl p-4 sm:p-5 md:px-8 md:py-5 text-white max-w-full">
@@ -92,7 +94,7 @@ export default function SoilHealth() {
             </div>
             <div className="text-xs sm:text-sm space-y-1">
               <p>Crop Age :- {soilHealthData.cropAge} days</p>
-              
+
               {/* Standard Yield */}
               <div className="flex items-baseline gap-2">
                 <span className="text-gray-400">Standard Yield:-</span>
@@ -100,7 +102,7 @@ export default function SoilHealth() {
                   {soilHealthData.standardYield} Quintals
                 </span>
               </div>
-              
+
               {/* AI Yield */}
               <div className="flex items-baseline gap-2">
                 <span className="text-gray-400">AI Predicted Yield:-</span>
@@ -135,8 +137,8 @@ export default function SoilHealth() {
                 soilHealthData.healthPercentage >= 75
                   ? "bg-white text-green-600"
                   : soilHealthData.healthPercentage >= 50
-                  ? "bg-white text-yellow-600"
-                  : "bg-white text-red-600"
+                    ? "bg-white text-yellow-600"
+                    : "bg-white text-red-600"
               } px-3 sm:px-4 py-1 rounded-md text-xs font-medium`}
             >
               {soilHealthData.healthStatus}
@@ -149,8 +151,8 @@ export default function SoilHealth() {
                 soilHealthData.healthPercentage >= 75
                   ? "bg-green-500"
                   : soilHealthData.healthPercentage >= 50
-                  ? "bg-yellow-500"
-                  : "bg-red-500"
+                    ? "bg-yellow-500"
+                    : "bg-red-500"
               }`}
               style={{ width: `${soilHealthData.healthPercentage}%` }}
             ></div>

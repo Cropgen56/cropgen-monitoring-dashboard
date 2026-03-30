@@ -7,12 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "data:mh-villages": "node scripts/fetch-mh-villages.mjs",
+    "data:washim": "node scripts/build-washim-soybean.mjs"
   },
   "dependencies": {
     "@mapbox/togeojson": "^0.16.2",
     "@tailwindcss/vite": "^4.1.17",
     "@turf/turf": "^7.3.0",
+    "@xmldom/xmldom": "^0.9.9",
     "axios": "^1.13.2",
     "leaflet-draw": "^1.0.4",
     "lucide-react": "^0.554.0",

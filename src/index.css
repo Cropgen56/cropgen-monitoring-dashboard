@@ -145,6 +145,25 @@ body {
   position: relative;
 }
 
+/* Rich plot hover card on hackathon map (Leaflet tooltip) */
+.leaflet-tooltip.agri-plot-hover {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  max-width: min(300px, 92vw);
+}
+
+.leaflet-tooltip.agri-plot-hover::before {
+  display: none;
+}
+
+.leaflet-tooltip.agri-plot-hover .leaflet-tooltip-content {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
 /* Ensure proper scrolling on iOS/iPadOS */
 @supports (-webkit-touch-callout: none) {
   body {
