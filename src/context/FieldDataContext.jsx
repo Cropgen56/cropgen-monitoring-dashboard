@@ -248,6 +248,25 @@ export function FieldDataProvider({ children }) {
   const [selectedCrop, setSelectedCrop] = useState("");
   const [selectedSampleFieldId, setSelectedSampleFieldId] = useState(null);
   const [selectedSnapshotField, setSelectedSnapshotField] = useState(null);
+  /** Demo government program snapshot for hackathon UI (merged with plot-specific data in Admin). */
+  const governmentPrograms = useMemo(
+    () => ({
+      insurance: {
+        provider: "PMFBY",
+        status: "claimed",
+        amount: 25000,
+      },
+      loan: {
+        status: "active",
+        amount: 50000,
+      },
+      schemes: [
+        { name: "PM-KISAN", status: "received", amount: 6000 },
+        { name: "Soil Health Card", status: "active" },
+      ],
+    }),
+    [],
+  );
 
   const fieldData = useMemo(() => {
     if (!sampleFields || !sampleFields.features?.length) return null;
@@ -309,6 +328,7 @@ export function FieldDataProvider({ children }) {
     selectedCrop,
     selectedSampleFieldId,
     selectedField: selectedSnapshotField,
+    governmentPrograms,
 
     loadSampleFields: setSampleFields,
     setSelectedCrop: (crop) => setSelectedCrop(crop || ""),

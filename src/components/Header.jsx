@@ -1,21 +1,19 @@
 import React from "react";
-import { Bell, Settings } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { Bell, LayoutDashboard, Satellite, Settings } from "lucide-react";
 import img from "../assets/logo.png";
 import { PLATFORM_TAGLINE } from "../data/agriStateData";
 
-export default function Header() {
-  const navItems = [
-    { name: "AI Admin + Survey", active: true },
-    { name: "Maharashtra GIS", active: false },
-    { name: "PMFBY / Mahadbt", active: false },
-  ];
+const navPill =
+  "flex flex-1 min-w-[88px] items-center justify-center gap-1.5 rounded-full px-3 py-2 text-[11px] sm:text-xs font-semibold transition";
 
+export default function Header() {
   return (
     <header className="bg-cg-bg/95 backdrop-blur-sm border-b border-white/10 sticky top-0 z-1150">
       <div className="w-full px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
-            <div className="flex items-center shrink-0 gap-3">
+            <div className="flex items-center shrink-0 gap-3 min-w-0">
               <img
                 src={img}
                 alt="Logo"
@@ -41,20 +39,33 @@ export default function Header() {
             </div>
           </div>
 
-          <nav className="hidden lg:flex flex-1 overflow-x-auto scrollbar-hide min-w-0">
-            <div className="flex gap-1 sm:gap-2 bg-[#354A3D] rounded-full px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 w-fit mx-auto">
-              {navItems.map((item) => (
-                <span
-                  key={item.name}
-                  className={`px-2 sm:px-3 md:px-4 py-0.5 sm:py-1 md:py-1.5 rounded-full text-[10px] sm:text-xs md:text-sm cursor-default whitespace-nowrap ${
-                    item.active
-                      ? "bg-[#0C2214] text-white"
-                      : "text-gray-300"
-                  }`}
-                >
-                  {item.name}
-                </span>
-              ))}
+          <nav
+            className="flex flex-1 min-w-0 justify-center lg:justify-center"
+            aria-label="Main workspace"
+          >
+            <div className="flex w-full max-w-md gap-1 sm:gap-1.5 bg-[#354A3D] rounded-full p-1 sm:p-1.5 shadow-inner">
+              <NavLink
+                to="/survey"
+                className={({ isActive }) =>
+                  `${navPill} ${
+                    isActive ? "bg-[#0C2214] text-white shadow-sm" : "text-gray-300 hover:text-white hover:bg-white/5"
+                  }`
+                }
+              >
+                <Satellite className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 opacity-90" />
+                Survey
+              </NavLink>
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  `${navPill} ${
+                    isActive ? "bg-[#0C2214] text-white shadow-sm" : "text-gray-300 hover:text-white hover:bg-white/5"
+                  }`
+                }
+              >
+                <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 opacity-90" />
+                Admin
+              </NavLink>
             </div>
           </nav>
 

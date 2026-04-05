@@ -11,7 +11,7 @@ import L from "leaflet";
 import * as turf from "@turf/turf";
 import "leaflet/dist/leaflet.css";
 import { validationPoints } from "../../data/agriStateData";
-import { SOYBEAN_CROP_IMAGE_URL } from "../../data/cropAssets";
+import { BANANA_CROP_IMAGE_URL, SOYBEAN_CROP_IMAGE_URL } from "../../data/cropAssets";
 
 const ACRES_PER_HA = 2.471053814671738;
 
@@ -92,11 +92,15 @@ function buildPlotHoverHtml(feature) {
 
   const ct = String(p.cropType || "").toLowerCase();
   const isSoybean = ct === "soybean" || ct === "soyabean";
-  const soybeanBanner = isSoybean
-    ? `<div style="height:68px;overflow:hidden;line-height:0;background:#292524;">
-  <img src="${SOYBEAN_CROP_IMAGE_URL}" alt="" width="288" height="68" style="width:100%;height:68px;object-fit:cover;object-position:center 35%;display:block;"/>
+  const isBanana = ct === "banana";
+  const cropBanner =
+    isSoybean || isBanana
+      ? `<div style="height:72px;overflow:hidden;line-height:0;background:${
+          isBanana ? "#422006" : "#1c1917"
+        };">
+  <img src="${isBanana ? BANANA_CROP_IMAGE_URL : SOYBEAN_CROP_IMAGE_URL}" alt="" width="300" height="72" style="width:100%;height:72px;object-fit:cover;object-position:center 35%;display:block;"/>
 </div>`
-    : "";
+      : "";
 
   return `
 <div style="width:100%;max-width:288px;border-radius:12px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.45);font-family:system-ui,-apple-system,sans-serif;font-size:12px;color:#1e293b;background:#fff;">
@@ -104,7 +108,7 @@ function buildPlotHoverHtml(feature) {
     <div style="font-weight:700;font-size:13px;letter-spacing:.02em;">${esc(title)}</div>
     <div style="opacity:.92;font-size:11px;margin-top:2px;">${esc(subtitle)}</div>
   </div>
-  ${soybeanBanner}
+  ${cropBanner}
   <div style="padding:10px 12px 12px;background:#fafafa;">
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
       <div style="width:36px;height:36px;border-radius:999px;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:18px;">👤</div>
@@ -150,15 +154,16 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
+/** Crop classification colors: Banana yellow, Soybean green, Rice blue, Cotton purple, Sugarcane orange */
 const CROP_HEX = {
   Banana: "#eab308",
-  Rice: "#06b6d4",
   Soybean: "#22c55e",
+  Rice: "#2563eb",
+  Cotton: "#a855f7",
+  Sugarcane: "#ea580c",
   Chili: "#ef4444",
-  Sugarcane: "#a855f7",
-  Cotton: "#3b82f6",
   Wheat: "#d6d3d1",
-  Maize: "#f97316",
+  Maize: "#ca8a04",
   Tobacco: "#78716c",
 };
 
@@ -198,6 +203,41 @@ function droughtStyle(cls) {
   }
 }
 
+function surveyRiskLevel(p) {
+  const ndvi = Number(p?.surveyNdviHealth ?? p?.avgNDVI ?? 0);
+  const h = String(p?.cropHealth || "").toLowerCase();
+  if (h === "poor" || ndvi < 0.4) return "High";
+  if (h === "decent" || ndvi < 0.55) return "Moderate";
+  return "Low";
+}
+
+function buildSurveyPopupHtml(feature) {
+  const p = feature.properties || {};
+  const crop = esc(p.cropType || "—");
+  const ndvi = Number(p.surveyNdviHealth ?? p.avgNDVI ?? 0);
+  const ndviStr = Number.isFinite(ndvi) ? ndvi.toFixed(2) : "—";
+  const yieldVal =
+    p.predictedYieldTonPerAcre ??
+    p.aiYield ??
+    p.soilHealth?.aiYield ??
+    "—";
+  const yieldStr =
+    typeof yieldVal === "number" ? `${yieldVal} t/ac` : esc(String(yieldVal));
+  const risk = surveyRiskLevel(p);
+  return `
+<div style="min-width:200px;font-family:system-ui,sans-serif;font-size:12px;color:#e2e8f0;">
+  <div style="font-weight:700;color:#fff;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:6px;">Field insight</div>
+  <div style="display:grid;gap:6px;">
+    <div><span style="color:#94a3b8;">Crop</span><br/><strong style="color:#f8fafc;">${crop}</strong></div>
+    <div><span style="color:#94a3b8;">Health (NDVI)</span><br/><strong style="color:#86efac;">${ndviStr}</strong></div>
+    <div><span style="color:#94a3b8;">Predicted yield</span><br/><strong style="color:#fde047;">${yieldStr}</strong></div>
+    <div><span style="color:#94a3b8;">Risk level</span><br/><strong style="color:${
+      risk === "High" ? "#f87171" : risk === "Moderate" ? "#fbbf24" : "#4ade80"
+    };">${risk}</strong></div>
+  </div>
+</div>`;
+}
+
 function riskStyle(feature) {
   const tags = feature?.properties?.aiRiskTags || [];
   if (tags.includes("high_risk_zone"))
@@ -214,7 +254,10 @@ const FitBounds = ({ bounds }) => {
   const prev = useRef(null);
 
   useEffect(() => {
-    if (!bounds) return;
+    if (!bounds) {
+      prev.current = null;
+      return;
+    }
     const key = JSON.stringify(bounds);
     if (prev.current === key) return;
     prev.current = key;
@@ -231,6 +274,36 @@ const FitBounds = ({ bounds }) => {
   return null;
 };
 
+/** When there are no plot features (loading or filter mismatch), pan to a known district view. */
+function RegionFallback({ bounds, regionFallback }) {
+  const map = useMap();
+  const prev = useRef(null);
+
+  useEffect(() => {
+    if (bounds) {
+      prev.current = null;
+      return;
+    }
+    if (!regionFallback?.center) return;
+    const key = JSON.stringify(regionFallback);
+    if (prev.current === key) return;
+    prev.current = key;
+    const t = setTimeout(() => {
+      try {
+        map.flyTo(regionFallback.center, regionFallback.zoom ?? 11, {
+          duration: 0.45,
+          animate: true,
+        });
+      } catch {
+        /* ignore */
+      }
+    }, 100);
+    return () => clearTimeout(t);
+  }, [bounds, regionFallback, map]);
+
+  return null;
+}
+
 export default function AgriMap({
   plotData,
   villageBoundary,
@@ -239,29 +312,22 @@ export default function AgriMap({
   selectedPlotId,
   onPlotClick,
   showValidationPoints,
+  regionFallback = null,
+  /** When true (survey mode), bind click popup with crop / NDVI / yield / risk */
+  showSurveyPopup = false,
 }) {
   const bounds = useMemo(() => {
     if (!plotData?.features?.length) return null;
-    const latLngs = [];
-    const pushRing = (ring) => {
-      ring.forEach(([lng, lat]) => latLngs.push([lat, lng]));
-    };
-    plotData.features.forEach((f) => {
-      const g = f.geometry;
-      if (!g) return;
-      if (g.type === "Polygon") {
-        pushRing(g.coordinates[0]);
-      } else if (g.type === "MultiPolygon") {
-        g.coordinates.forEach((poly) => pushRing(poly[0]));
-      }
-    });
-    if (!latLngs.length) return null;
-    const lats = latLngs.map((c) => c[0]);
-    const lngs = latLngs.map((c) => c[1]);
-    return [
-      [Math.min(...lats), Math.min(...lngs)],
-      [Math.max(...lats), Math.max(...lngs)],
-    ];
+    try {
+      const b = turf.bbox(plotData);
+      const [minLng, minLat, maxLng, maxLat] = b;
+      return [
+        [minLat, minLng],
+        [maxLat, maxLng],
+      ];
+    } catch {
+      return null;
+    }
   }, [plotData]);
 
   const styleFor = (feature) => {
@@ -277,7 +343,10 @@ export default function AgriMap({
       stroke = r.stroke;
     } else if (platformMode === "survey") {
       if (mapLayer === "crop_class") {
-        fill = CROP_HEX[p.cropType] || "#64748b";
+        const key = Object.keys(CROP_HEX).find(
+          (k) => k.toLowerCase() === String(p.cropType || "").trim().toLowerCase(),
+        );
+        fill = (key && CROP_HEX[key]) || "#64748b";
         stroke = "#0f172a";
       } else if (mapLayer === "ndvi") {
         fill = ndviColor(p.surveyNdviHealth ?? p.avgNDVI);
@@ -334,7 +403,7 @@ export default function AgriMap({
 
         {plotData && (
           <GeoJSON
-            key={`${mapLayer}-${platformMode}-${plotData.features?.length}`}
+            key={`${mapLayer}-${platformMode}-${showSurveyPopup}-${plotData.features?.length}`}
             data={plotData}
             style={styleFor}
             onEachFeature={(feature, layer) => {
@@ -348,6 +417,12 @@ export default function AgriMap({
                 className: "agri-plot-hover",
                 interactive: false,
               });
+              if (showSurveyPopup && platformMode === "survey") {
+                layer.bindPopup(buildSurveyPopupHtml(feature), {
+                  className: "agri-survey-popup",
+                  maxWidth: 280,
+                });
+              }
             }}
           />
         )}
@@ -377,6 +452,7 @@ export default function AgriMap({
             </CircleMarker>
           ))}
 
+        <RegionFallback bounds={bounds} regionFallback={regionFallback} />
         <FitBounds bounds={bounds} />
       </MapContainer>
 

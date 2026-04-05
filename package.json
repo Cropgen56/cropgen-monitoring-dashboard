@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "data:mh-villages": "node scripts/fetch-mh-villages.mjs",
-    "data:washim": "node scripts/build-washim-soybean.mjs"
+    "data:washim": "node scripts/build-washim-soybean.mjs",
+    "data:jalna": "node scripts/build-jalna-banana.mjs"
   },
   "dependencies": {
     "@mapbox/togeojson": "^0.16.2",
@@ -23,6 +24,7 @@
     "react-dom": "^19.2.0",
     "react-leaflet": "^5.0.0",
     "react-leaflet-draw": "^0.21.0",
+    "react-router-dom": "^7.14.0",
     "recharts": "^3.4.1",
     "tailwindcss": "^4.1.17"
   },
@@ -35,6 +37,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "proj4": "^2.20.6",
     "vite": "^7.2.2"
   }
 }
