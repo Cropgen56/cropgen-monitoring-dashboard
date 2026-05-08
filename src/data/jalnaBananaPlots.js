@@ -1,5 +1,5 @@
 /**
- * Jalna banana — geometry from public/data/jalna-banana-plots.geojson (from Jalna_banana.kml via npm run data:jalna).
+ * Jalna banana — geometry from public/data/jalna-banana-plots.geojson (from JALNA_BANANA.kml via npm run data:jalna).
  */
 
 import * as turf from "@turf/turf";

@@ -9,6 +9,7 @@ import { AgriPlatformProvider } from "./context/AgriPlatformContext";
 import SurveyPage from "./pages/SurveyPage";
 import AdminPage from "./pages/AdminPage";
 import AIInsightsPage from "./pages/AIInsightsPage";
+import HackathonStory from "./components/platform/HackathonStory";
 
 function PlatformShell() {
   return (
@@ -26,8 +27,9 @@ export default function App() {
           <Header />
 
           <div className="w-full max-w-[2000px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 pb-8 sm:pb-12 md:pb-16">
-            <div className="mb-3 sm:mb-4 lg:max-w-3xl">
+            <div className="mb-3 sm:mb-4 space-y-3 lg:max-w-3xl">
               <SearchBar onLocationSelect={() => {}} />
+              <HackathonStory />
             </div>
 
             <Routes>

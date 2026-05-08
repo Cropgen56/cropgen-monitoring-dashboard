@@ -3,6 +3,8 @@ import { PLATFORM_TAGLINE } from "../data/agriStateData";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
 import PlatformFilterSidebar from "../components/platform/PlatformFilterSidebar";
 import AdminPanel from "../components/admin/AdminPanel";
+import PageHero from "../components/ui/PageHero";
+import DataQualityBanner from "../components/platform/DataQualityBanner";
 
 export default function AdminPage() {
   const s = useAgriPlatform();
@@ -10,21 +12,14 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-950/50 via-[#0a180f]/90 to-cg-panel/90 px-4 py-3.5 sm:px-5 sm:py-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-              Government console
-            </p>
-            <h2 className="mt-1 text-[15px] sm:text-base font-semibold text-white leading-snug">
-              KPIs, farmer mapping, schemes, alerts, and desk actions
-            </h2>
-          </div>
-          <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-sm lg:text-right">
-            {PLATFORM_TAGLINE}
-          </p>
-        </div>
-      </div>
+      <PageHero
+        accent="emerald"
+        eyebrow="Government console"
+        title="KPIs, farmer mapping, schemes, alerts, and desk actions"
+        description={PLATFORM_TAGLINE}
+      />
+
+      <DataQualityBanner mapDataQuality={s.mapDataQuality} />
 
       {s.washimLoadError && s.district === "Washim" && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
@@ -58,6 +53,7 @@ export default function AdminPage() {
           selectedProperties={s.selectedProperties}
           selectSampleField={s.selectSampleField}
           loadedFieldCount={s.loadedFieldCount}
+          isLoading={s.washimLoading || s.jalnaLoading}
         />
       </div>
 

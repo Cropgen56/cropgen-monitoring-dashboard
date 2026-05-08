@@ -14,6 +14,9 @@ import {
 } from "recharts";
 import AgriMap from "../hackathon/AgriMap";
 import { CropHealthCard, SoilAnalysisCard } from "../hackathon/fieldDetailCards";
+import HealthLegend from "../ui/HealthLegend";
+import ClassificationLegend from "../ui/ClassificationLegend";
+import PanelSkeleton from "../ui/PanelSkeleton";
 import { surveyMeta, innovationHighlights, governmentUseCases } from "../../data/agriStateData";
 
 /**
@@ -31,6 +34,7 @@ export default function CropSurveyPanel({
   yieldCompareData,
   historicalYield,
   selectedProperties: p,
+  isLoading = false,
 }) {
   const [govMode, setGovMode] = useState("g1");
 
@@ -49,23 +53,11 @@ export default function CropSurveyPanel({
           onPlotClick={onPlotClick}
           showValidationPoints={showValidationPoints}
           regionFallback={mapRegionFallback}
+          isLoading={isLoading}
           showSurveyPopup
         />
-        <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-gray-400">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-green-500" /> Healthy
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-yellow-400" /> Moderate
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full bg-red-500" /> Risk
-          </span>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-cg-panel/80 p-3 text-[10px] text-gray-400">
-          <span className="font-semibold text-cg-accent">Classification legend:</span> Banana · yellow,
-          Soybean · green, Rice · blue, Cotton · purple, Sugarcane · orange.
-        </div>
+        <HealthLegend />
+        <ClassificationLegend />
       </section>
 
       <aside className="custom-scrollbar lg:col-span-3 space-y-3 lg:max-h-[min(78vh,680px)] lg:overflow-y-auto min-w-0">
@@ -73,6 +65,10 @@ export default function CropSurveyPanel({
           Yield, trends &amp; survey tools
         </p>
 
+        {isLoading && <PanelSkeleton blocks={4} />}
+
+        {!isLoading && (
+          <>
         {p && (
           <div className="space-y-3">
             <CropHealthCard p={p} />
@@ -196,6 +192,8 @@ export default function CropSurveyPanel({
               "Disaster assessment: combine drought layer with insurance anomaly alerts for rapid desk review."}
           </p>
         </div>
+          </>
+        )}
       </aside>
     </div>
   );

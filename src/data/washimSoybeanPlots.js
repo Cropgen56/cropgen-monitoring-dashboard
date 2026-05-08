@@ -1,5 +1,5 @@
 /**
- * Washim soybean fields — geometry from public/data/washim-soybean-plots.geojson (built from washim_soyabean.kml).
+ * Washim soybean fields — geometry from public/data/washim-soybean-plots.geojson (built from WASHIM_SOYBEAN.kml).
  * Full FieldDataContext-compatible properties are applied at runtime via enrichWashimSoybeanFeatureCollection.
  */
 

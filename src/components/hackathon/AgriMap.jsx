@@ -1,4 +1,12 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  memo,
+} from "react";
 import {
   MapContainer,
   TileLayer,
@@ -12,6 +20,17 @@ import * as turf from "@turf/turf";
 import "leaflet/dist/leaflet.css";
 import { validationPoints } from "../../data/agriStateData";
 import { BANANA_CROP_IMAGE_URL, SOYBEAN_CROP_IMAGE_URL } from "../../data/cropAssets";
+import {
+  CROP_HEX,
+  aiRiskZoneColors,
+  droughtStressColors,
+  formatFarmerLanguageLabel,
+  healthBucketColor,
+  ndviFillColor,
+  surveyRiskColor,
+  surveyRiskLevelFromProps,
+} from "../../data/monitoringDefinitions";
+import SatelliteScanLoader from "../ui/SatelliteScanLoader";
 
 const ACRES_PER_HA = 2.471053814671738;
 
@@ -78,6 +97,14 @@ function farmingLabel(p) {
 
 function buildPlotHoverHtml(feature) {
   const p = feature.properties || {};
+  if (p.layerType === "district") {
+    const districtName = p.district || p.name || "District";
+    return `
+<div style="min-width:180px;font-family:system-ui,sans-serif;font-size:12px;color:#e2e8f0;">
+  <div style="font-weight:700;color:#fff;margin-bottom:6px;">${esc(districtName)}</div>
+  <div style="color:#cbd5e1;">District boundary view</div>
+</div>`;
+  }
   const title =
     (p.name || "Field").split("—")[0].trim() || "Field";
   const subtitle = `${p.cropType || "Crop"} · ${p.clusterId || "—"}`;
@@ -137,7 +164,7 @@ function buildPlotHoverHtml(feature) {
       <div style="display:flex;justify-content:space-between;gap:8px;"><span>📅 Sowing</span><span style="font-weight:600;color:#0f172a;">${esc(formatSowingDate(p.sowingDate))}</span></div>
       <div style="display:flex;justify-content:space-between;gap:8px;"><span>📍 Vertices</span><span style="font-weight:600;color:#0f172a;">${vertices} pts</span></div>
       <div style="display:flex;justify-content:space-between;gap:8px;"><span>◎ Center</span><span style="font-weight:600;color:#0f172a;font-family:ui-monospace,monospace;font-size:10px;">${esc(center)}</span></div>
-      <div style="display:flex;justify-content:space-between;gap:8px;"><span>🌐 Language</span><span style="font-weight:600;color:#0f172a;">Hi</span></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>🌐 Language</span><span style="font-weight:600;color:#0f172a;">${esc(formatFarmerLanguageLabel(p))}</span></div>
     </div>
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:11px;font-weight:600;color:#15803d;">Click to inspect field →</div>
   </div>
@@ -154,63 +181,6 @@ L.Icon.Default.mergeOptions({
     "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-/** Crop classification colors: Banana yellow, Soybean green, Rice blue, Cotton purple, Sugarcane orange */
-const CROP_HEX = {
-  Banana: "#eab308",
-  Soybean: "#22c55e",
-  Rice: "#2563eb",
-  Cotton: "#a855f7",
-  Sugarcane: "#ea580c",
-  Chili: "#ef4444",
-  Wheat: "#d6d3d1",
-  Maize: "#ca8a04",
-  Tobacco: "#78716c",
-};
-
-function getHealthColor(health) {
-  const value = (health || "").toLowerCase();
-  switch (value) {
-    case "very good":
-      return "#22c55e";
-    case "good":
-      return "#4ade80";
-    case "decent":
-      return "#eab308";
-    case "poor":
-      return "#f97316";
-    default:
-      return "#9ca3af";
-  }
-}
-
-function ndviColor(v) {
-  const x = Number(v) || 0;
-  if (x >= 0.7) return "#16a34a";
-  if (x >= 0.55) return "#84cc16";
-  if (x >= 0.45) return "#eab308";
-  if (x >= 0.35) return "#f97316";
-  return "#dc2626";
-}
-
-function droughtStyle(cls) {
-  switch (cls) {
-    case "high":
-      return { fill: "#dc2626", stroke: "#991b1b" };
-    case "moderate":
-      return { fill: "#f97316", stroke: "#c2410c" };
-    default:
-      return { fill: "#22c55e", stroke: "#15803d" };
-  }
-}
-
-function surveyRiskLevel(p) {
-  const ndvi = Number(p?.surveyNdviHealth ?? p?.avgNDVI ?? 0);
-  const h = String(p?.cropHealth || "").toLowerCase();
-  if (h === "poor" || ndvi < 0.4) return "High";
-  if (h === "decent" || ndvi < 0.55) return "Moderate";
-  return "Low";
-}
-
 function buildSurveyPopupHtml(feature) {
   const p = feature.properties || {};
   const crop = esc(p.cropType || "—");
@@ -223,7 +193,7 @@ function buildSurveyPopupHtml(feature) {
     "—";
   const yieldStr =
     typeof yieldVal === "number" ? `${yieldVal} t/ac` : esc(String(yieldVal));
-  const risk = surveyRiskLevel(p);
+  const risk = surveyRiskLevelFromProps(p);
   return `
 <div style="min-width:200px;font-family:system-ui,sans-serif;font-size:12px;color:#e2e8f0;">
   <div style="font-weight:700;color:#fff;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:6px;">Field insight</div>
@@ -231,22 +201,9 @@ function buildSurveyPopupHtml(feature) {
     <div><span style="color:#94a3b8;">Crop</span><br/><strong style="color:#f8fafc;">${crop}</strong></div>
     <div><span style="color:#94a3b8;">Health (NDVI)</span><br/><strong style="color:#86efac;">${ndviStr}</strong></div>
     <div><span style="color:#94a3b8;">Predicted yield</span><br/><strong style="color:#fde047;">${yieldStr}</strong></div>
-    <div><span style="color:#94a3b8;">Risk level</span><br/><strong style="color:${
-      risk === "High" ? "#f87171" : risk === "Moderate" ? "#fbbf24" : "#4ade80"
-    };">${risk}</strong></div>
+    <div><span style="color:#94a3b8;">Risk level</span><br/><strong style="color:${surveyRiskColor(risk)};">${risk}</strong></div>
   </div>
 </div>`;
-}
-
-function riskStyle(feature) {
-  const tags = feature?.properties?.aiRiskTags || [];
-  if (tags.includes("high_risk_zone"))
-    return { fill: "#dc2626", stroke: "#7f1d1d" };
-  if (tags.includes("over_fertilization"))
-    return { fill: "#a855f7", stroke: "#6b21a8" };
-  if (tags.includes("moderate_et_deficit"))
-    return { fill: "#f97316", stroke: "#9a3412" };
-  return { fill: "#22c55e", stroke: "#14532d" };
 }
 
 const FitBounds = ({ bounds }) => {
@@ -304,6 +261,33 @@ function RegionFallback({ bounds, regionFallback }) {
   return null;
 }
 
+const VILLAGE_OUTLINE_STYLE = {
+  fill: false,
+  color: "#93c5fd",
+  weight: 2,
+  dashArray: "6 8",
+  opacity: 0.85,
+};
+
+const PlotGeoJsonLayer = memo(function PlotGeoJsonLayer({
+  plotData,
+  styleFor,
+  onEachFeature,
+  layerKey,
+  renderer,
+}) {
+  if (!plotData?.features?.length) return null;
+  return (
+    <GeoJSON
+      key={layerKey}
+      data={plotData}
+      style={styleFor}
+      onEachFeature={onEachFeature}
+      renderer={renderer}
+    />
+  );
+});
+
 export default function AgriMap({
   plotData,
   villageBoundary,
@@ -313,13 +297,22 @@ export default function AgriMap({
   onPlotClick,
   showValidationPoints,
   regionFallback = null,
+  isLoading = false,
   /** When true (survey mode), bind click popup with crop / NDVI / yield / risk */
   showSurveyPopup = false,
 }) {
+  const deferredPlotData = useDeferredValue(plotData);
+  const hoverHtmlCacheRef = useRef(new Map());
+  const canvasRenderer = useMemo(() => L.canvas({ padding: 0.5 }), []);
+
+  useEffect(() => {
+    hoverHtmlCacheRef.current.clear();
+  }, [deferredPlotData]);
+
   const bounds = useMemo(() => {
-    if (!plotData?.features?.length) return null;
+    if (!deferredPlotData?.features?.length) return null;
     try {
-      const b = turf.bbox(plotData);
+      const b = turf.bbox(deferredPlotData);
       const [minLng, minLat, maxLng, maxLat] = b;
       return [
         [minLat, minLng],
@@ -328,50 +321,134 @@ export default function AgriMap({
     } catch {
       return null;
     }
-  }, [plotData]);
+  }, [deferredPlotData]);
 
-  const styleFor = (feature) => {
-    const p = feature?.properties || {};
-    const selected = p._id === selectedPlotId;
-    const weight = selected ? 3 : 1.2;
-    let fill = "#22c55e";
-    let stroke = "#15803d";
+  const styleFor = useCallback(
+    (feature) => {
+      const p = feature?.properties || {};
+      const selected = p._id === selectedPlotId;
+      const weight = selected ? 3 : 1.2;
+      if (p.layerType === "district") {
+        return {
+          fillColor: selected ? "#22c55e" : "#38bdf8",
+          fillOpacity: selected ? 0.4 : 0.22,
+          color: selected ? "#166534" : "#0f766e",
+          weight: selected ? 2.5 : 1.4,
+          opacity: 0.95,
+        };
+      }
+      let fill = "#22c55e";
+      let stroke = "#15803d";
 
-    if (platformMode === "admin" && mapLayer === "risk") {
-      const r = riskStyle(feature);
-      fill = r.fill;
-      stroke = r.stroke;
-    } else if (platformMode === "survey") {
-      if (mapLayer === "crop_class") {
-        const key = Object.keys(CROP_HEX).find(
-          (k) => k.toLowerCase() === String(p.cropType || "").trim().toLowerCase(),
-        );
-        fill = (key && CROP_HEX[key]) || "#64748b";
-        stroke = "#0f172a";
-      } else if (mapLayer === "ndvi") {
-        fill = ndviColor(p.surveyNdviHealth ?? p.avgNDVI);
-        stroke = "#14532d";
-      } else if (mapLayer === "drought") {
-        const d = droughtStyle(p.droughtClass);
-        fill = d.fill;
-        stroke = d.stroke;
+      if (platformMode === "admin" && mapLayer === "risk") {
+        const r = aiRiskZoneColors(feature);
+        fill = r.fill;
+        stroke = r.stroke;
+      } else if (platformMode === "survey") {
+        if (mapLayer === "crop_class") {
+          const key = Object.keys(CROP_HEX).find(
+            (k) =>
+              k.toLowerCase() === String(p.cropType || "").trim().toLowerCase(),
+          );
+          fill = (key && CROP_HEX[key]) || "#64748b";
+          stroke = "#0f172a";
+        } else if (mapLayer === "ndvi") {
+          fill = ndviFillColor(p.surveyNdviHealth ?? p.avgNDVI);
+          stroke = "#14532d";
+        } else if (mapLayer === "drought") {
+          const d = droughtStressColors(p.droughtClass);
+          fill = d.fill;
+          stroke = d.stroke;
+        } else {
+          fill = healthBucketColor(p.cropHealth);
+          stroke = "#14532d";
+        }
       } else {
-        fill = getHealthColor(p.cropHealth);
+        fill = healthBucketColor(p.cropHealth);
         stroke = "#14532d";
       }
-    } else {
-      fill = getHealthColor(p.cropHealth);
-      stroke = "#14532d";
+
+      return {
+        fillColor: fill,
+        fillOpacity: selected ? 0.72 : 0.58,
+        color: stroke,
+        weight,
+        opacity: 0.95,
+      };
+    },
+    [mapLayer, platformMode, selectedPlotId],
+  );
+
+  const geoJsonKey = useMemo(
+    () =>
+      `${mapLayer}-${platformMode}-${showSurveyPopup}-${deferredPlotData?.features?.length ?? 0}`,
+    [mapLayer, platformMode, showSurveyPopup, deferredPlotData?.features?.length],
+  );
+
+  const isDeferredRendering = deferredPlotData !== plotData;
+  const shouldShowLoader = isLoading || isDeferredRendering;
+  const [loaderVisible, setLoaderVisible] = useState(false);
+  const loaderStartRef = useRef(0);
+  const loaderHideTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (shouldShowLoader) {
+      if (loaderHideTimerRef.current) {
+        clearTimeout(loaderHideTimerRef.current);
+        loaderHideTimerRef.current = null;
+      }
+      if (!loaderVisible) {
+        loaderStartRef.current = Date.now();
+        setLoaderVisible(true);
+      }
+      return;
     }
 
-    return {
-      fillColor: fill,
-      fillOpacity: selected ? 0.72 : 0.58,
-      color: stroke,
-      weight,
-      opacity: 0.95,
+    if (!loaderVisible) return;
+    const elapsed = Date.now() - loaderStartRef.current;
+    const remaining = Math.max(0, 2000 - elapsed);
+    loaderHideTimerRef.current = setTimeout(() => {
+      setLoaderVisible(false);
+      loaderHideTimerRef.current = null;
+    }, remaining);
+
+    return () => {
+      if (loaderHideTimerRef.current) {
+        clearTimeout(loaderHideTimerRef.current);
+        loaderHideTimerRef.current = null;
+      }
     };
-  };
+  }, [shouldShowLoader, loaderVisible]);
+
+  const onEachPlotFeature = useCallback(
+    (feature, layer) => {
+      const featureId =
+        feature?.properties?._id ||
+        feature?.id ||
+        `${feature?.properties?.name || "plot"}-${feature?.geometry?.type || "geom"}`;
+      const cached = hoverHtmlCacheRef.current.get(featureId);
+      const hoverHtml = cached || buildPlotHoverHtml(feature);
+      if (!cached) hoverHtmlCacheRef.current.set(featureId, hoverHtml);
+
+      layer.on({
+        click: () => onPlotClick?.(feature),
+      });
+      layer.bindTooltip(hoverHtml, {
+        sticky: true,
+        opacity: 1,
+        direction: "auto",
+        className: "agri-plot-hover",
+        interactive: false,
+      });
+      if (showSurveyPopup && platformMode === "survey") {
+        layer.bindPopup(buildSurveyPopupHtml(feature), {
+          className: "agri-survey-popup",
+          maxWidth: 280,
+        });
+      }
+    },
+    [onPlotClick, showSurveyPopup, platformMode],
+  );
 
   return (
     <div className="relative h-[min(62vh,560px)] w-full overflow-hidden rounded-xl border border-green-900/30 bg-black/20">
@@ -389,43 +466,16 @@ export default function AgriMap({
         />
 
         {villageBoundary && (
-          <GeoJSON
-            data={villageBoundary}
-            style={{
-              fill: false,
-              color: "#93c5fd",
-              weight: 2,
-              dashArray: "6 8",
-              opacity: 0.85,
-            }}
-          />
+          <GeoJSON data={villageBoundary} style={VILLAGE_OUTLINE_STYLE} renderer={canvasRenderer} />
         )}
 
-        {plotData && (
-          <GeoJSON
-            key={`${mapLayer}-${platformMode}-${showSurveyPopup}-${plotData.features?.length}`}
-            data={plotData}
-            style={styleFor}
-            onEachFeature={(feature, layer) => {
-              layer.on({
-                click: () => onPlotClick?.(feature),
-              });
-              layer.bindTooltip(buildPlotHoverHtml(feature), {
-                sticky: true,
-                opacity: 1,
-                direction: "auto",
-                className: "agri-plot-hover",
-                interactive: false,
-              });
-              if (showSurveyPopup && platformMode === "survey") {
-                layer.bindPopup(buildSurveyPopupHtml(feature), {
-                  className: "agri-survey-popup",
-                  maxWidth: 280,
-                });
-              }
-            }}
-          />
-        )}
+        <PlotGeoJsonLayer
+          plotData={deferredPlotData}
+          styleFor={styleFor}
+          onEachFeature={onEachPlotFeature}
+          layerKey={geoJsonKey}
+          renderer={canvasRenderer}
+        />
 
         {showValidationPoints &&
           validationPoints.map((vp) => (
@@ -455,6 +505,8 @@ export default function AgriMap({
         <RegionFallback bounds={bounds} regionFallback={regionFallback} />
         <FitBounds bounds={bounds} />
       </MapContainer>
+
+      {loaderVisible && <SatelliteScanLoader />}
 
       <div className="pointer-events-none absolute bottom-3 left-3 flex flex-wrap gap-2">
         <span className="pointer-events-auto rounded-md bg-black/65 px-2 py-1 text-[10px] text-white/90 backdrop-blur-sm">

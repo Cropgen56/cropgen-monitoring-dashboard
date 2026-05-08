@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { AlertTriangle, MapPinned, Sparkles } from "lucide-react";
 import AgriMap from "../hackathon/AgriMap";
+import HealthLegend from "../ui/HealthLegend";
+import PanelSkeleton from "../ui/PanelSkeleton";
 import { useFieldData } from "../../context/FieldDataContext";
 import {
   stateSummary,
@@ -91,6 +93,7 @@ export default function AdminPanel({
   selectedProperties: p,
   selectSampleField,
   loadedFieldCount,
+  isLoading = false,
 }) {
   const { governmentPrograms } = useFieldData();
   const [adminTab, setAdminTab] = useState("farmer_mapping");
@@ -287,21 +290,16 @@ export default function AdminPanel({
               onPlotClick={onPlotClick}
               showValidationPoints={false}
               regionFallback={mapRegionFallback}
+              isLoading={isLoading}
             />
-            <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-gray-400">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-green-500" /> Healthy
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-yellow-400" /> Moderate
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-red-500" /> Risk
-              </span>
-            </div>
+            <HealthLegend />
           </section>
 
           <aside className="custom-scrollbar lg:col-span-3 space-y-3 lg:max-h-[min(78vh,720px)] lg:overflow-y-auto">
+            {isLoading && <PanelSkeleton blocks={4} />}
+
+            {!isLoading && (
+              <>
             {/* Crop title card — mockup */}
             <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-4 text-center shadow-md">
               <p className="text-lg font-bold text-amber-200">{crop || "All crops"}</p>
@@ -416,6 +414,8 @@ export default function AdminPanel({
                 >
                   Clear selection
                 </button>
+              </>
+            )}
               </>
             )}
           </aside>

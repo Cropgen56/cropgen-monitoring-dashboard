@@ -3,6 +3,8 @@ import { PLATFORM_TAGLINE } from "../data/agriStateData";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
 import PlatformFilterSidebar from "../components/platform/PlatformFilterSidebar";
 import CropSurveyPanel from "../components/survey/CropSurveyPanel";
+import PageHero from "../components/ui/PageHero";
+import DataQualityBanner from "../components/platform/DataQualityBanner";
 
 export default function SurveyPage() {
   const s = useAgriPlatform();
@@ -10,21 +12,14 @@ export default function SurveyPage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-sky-500/30 bg-gradient-to-br from-sky-950/40 via-[#0a180f]/90 to-cg-panel/90 px-4 py-3.5 sm:px-5 sm:py-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-              Satellite crop monitoring
-            </p>
-            <h2 className="mt-1 text-[15px] sm:text-base font-semibold text-white leading-snug">
-              Classification, NDVI, stress layers, and yield benchmarks
-            </h2>
-          </div>
-          <p className="text-[11px] sm:text-xs text-gray-400 leading-relaxed sm:max-w-sm lg:text-right">
-            {PLATFORM_TAGLINE}
-          </p>
-        </div>
-      </div>
+      <PageHero
+        accent="sky"
+        eyebrow="Satellite crop monitoring"
+        title="Classification, NDVI, stress layers, and yield benchmarks"
+        description={PLATFORM_TAGLINE}
+      />
+
+      <DataQualityBanner mapDataQuality={s.mapDataQuality} />
 
       {s.washimLoadError && s.district === "Washim" && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
@@ -56,6 +51,7 @@ export default function SurveyPage() {
           yieldCompareData={s.yieldCompareData}
           historicalYield={s.historicalYield}
           selectedProperties={s.selectedProperties}
+          isLoading={s.washimLoading || s.jalnaLoading}
         />
       </div>
 

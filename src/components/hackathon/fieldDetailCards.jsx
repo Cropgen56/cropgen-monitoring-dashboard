@@ -56,7 +56,7 @@ export function CropHealthCard({ p }) {
           </p>
           <p className="flex justify-between gap-2 text-white/95">
             <span className="text-gray-500">Total Area</span>
-            <span className="font-semibold text-white text-right">{areaStr} He</span>
+            <span className="font-semibold text-white text-right">{areaStr} ha</span>
           </p>
           <p className="pt-1 text-[11px] text-gray-400">Overall Crop Health</p>
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0">

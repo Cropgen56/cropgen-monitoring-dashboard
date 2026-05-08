@@ -18,6 +18,43 @@ import {
   getTalukas,
   buildVillageOptions,
 } from "../data/maharashtraHierarchy";
+import {
+  normalizeDistrictKey,
+  districtKeyCandidates,
+  sanitizeFeatureCollection,
+  classifyMapDataMode,
+} from "../data/monitoringDefinitions";
+
+const DISTRICT_GEOJSON_MODULES = import.meta.glob("../data/*.geojson", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+});
+
+function toFeatureCollection(input) {
+  if (!input) return null;
+  if (input.type === "FeatureCollection") return input;
+  if (input.type === "Feature") return { type: "FeatureCollection", features: [input] };
+  return null;
+}
+
+const DISTRICT_GEOJSON_BY_KEY = Object.entries(DISTRICT_GEOJSON_MODULES).reduce(
+  (acc, [path, mod]) => {
+    const file = path.split("/").pop() || "";
+    const base = file.replace(/\.geojson$/i, "");
+    const key = normalizeDistrictKey(base);
+    let parsed = null;
+    try {
+      parsed = typeof mod === "string" ? JSON.parse(mod) : mod?.default ?? mod;
+    } catch {
+      parsed = null;
+    }
+    const data = toFeatureCollection(parsed);
+    if (key && data) acc[key] = data;
+    return acc;
+  },
+  {},
+);
 
 export const MAP_FOCUS_BY_DISTRICT = {
   Jalna: { center: [19.84, 75.88], zoom: 11 },
@@ -54,6 +91,7 @@ export function useAgriPlatformState() {
   const [villageFilter, setVillageFilter] = useState("");
 
   const [washimSoybeanPlots, setWashimSoybeanPlots] = useState(null);
+  const [washimLoading, setWashimLoading] = useState(true);
   const [washimLoadError, setWashimLoadError] = useState(null);
   const [jalnaBananaPlots, setJalnaBananaPlots] = useState(null);
   const [jalnaLoadError, setJalnaLoadError] = useState(null);
@@ -64,6 +102,7 @@ export function useAgriPlatformState() {
 
   useEffect(() => {
     let cancelled = false;
+    setWashimLoading(true);
     fetch("/data/washim-soybean-plots.geojson")
       .then((r) => {
         if (!r.ok) throw new Error("washim geojson");
@@ -79,6 +118,9 @@ export function useAgriPlatformState() {
           setWashimSoybeanPlots(null);
           setWashimLoadError("Could not load Washim soybean plots (GeoJSON).");
         }
+      })
+      .finally(() => {
+        if (!cancelled) setWashimLoading(false);
       });
     return () => {
       cancelled = true;
@@ -91,9 +133,6 @@ export function useAgriPlatformState() {
       jalnaFetchRef.current.failed = false;
       return;
     }
-    const cropNorm = (crop || "").trim().toLowerCase();
-    const wantsJalnaLayer = cropNorm === "" || cropNorm === "banana";
-    if (!wantsJalnaLayer) return;
     if (jalnaFetchRef.current.inFlight || jalnaFetchRef.current.failed) return;
 
     let cancelled = false;
@@ -127,9 +166,9 @@ export function useAgriPlatformState() {
       cancelled = true;
       jalnaFetchRef.current.inFlight = false;
     };
-  }, [district, crop, jalnaBananaPlots]);
+  }, [district, jalnaBananaPlots]);
 
-  const fullPlots = useMemo(() => {
+  const fullPlotsRaw = useMemo(() => {
     const chunks = [basePlots.features];
     if (washimSoybeanPlots?.features?.length)
       chunks.push(washimSoybeanPlots.features);
@@ -138,6 +177,11 @@ export function useAgriPlatformState() {
     if (chunks.length === 1) return basePlots;
     return { type: "FeatureCollection", features: chunks.flat() };
   }, [basePlots, washimSoybeanPlots, jalnaBananaPlots]);
+
+  const fullPlots = useMemo(
+    () => sanitizeFeatureCollection(fullPlotsRaw, { idPrefix: "full" }),
+    [fullPlotsRaw],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -154,22 +198,56 @@ export function useAgriPlatformState() {
     };
   }, []);
 
-  const filteredPlots = useMemo(() => {
-    let features = fullPlots.features;
-    if (district)
-      features = features.filter((f) => f.properties?.district === district);
-    if (taluka)
-      features = features.filter((f) => f.properties?.taluka === taluka);
-    if (village)
-      features = features.filter((f) => f.properties?.village === village);
-    if (crop) {
-      const q = crop.trim().toLowerCase();
-      features = features.filter(
-        (f) => (f.properties?.cropType || "").trim().toLowerCase() === q,
+  const districtBoundaryPlots = useMemo(() => {
+    const buildDistrictFeatures = (districtName) => {
+      const candidates = districtKeyCandidates(districtName);
+      const key = Object.keys(DISTRICT_GEOJSON_BY_KEY).find((k) =>
+        candidates.some((c) => k === c || k.includes(c)),
       );
+      const fc = key ? DISTRICT_GEOJSON_BY_KEY[key] : null;
+      if (!fc?.features?.length) return [];
+      return fc.features.map((f, idx) => ({
+        ...f,
+        properties: {
+          ...(f.properties || {}),
+          _id: `district-${districtName.toLowerCase().replace(/\s+/g, "-")}-${idx}`,
+          district: districtName,
+          name: `${districtName} District`,
+          layerType: "district",
+        },
+      }));
+    };
+
+    if (district) {
+      return { type: "FeatureCollection", features: buildDistrictFeatures(district) };
     }
-    return { type: "FeatureCollection", features };
-  }, [fullPlots, district, taluka, village, crop]);
+
+    const allFeatures = MAHARASHTRA_DISTRICTS.flatMap((d) => buildDistrictFeatures(d));
+    return { type: "FeatureCollection", features: allFeatures };
+  }, [district]);
+
+  const filteredPlotsRaw = useMemo(() => {
+    if (district === "Washim" && washimSoybeanPlots?.features?.length) {
+      return washimSoybeanPlots;
+    }
+    if (district === "Jalna" && jalnaBananaPlots?.features?.length) {
+      return jalnaBananaPlots;
+    }
+    if (district) {
+      return districtBoundaryPlots;
+    }
+    return districtBoundaryPlots;
+  }, [district, districtBoundaryPlots, washimSoybeanPlots, jalnaBananaPlots]);
+
+  const filteredPlots = useMemo(
+    () => sanitizeFeatureCollection(filteredPlotsRaw, { idPrefix: "plot" }),
+    [filteredPlotsRaw],
+  );
+
+  const mapDataQuality = useMemo(() => {
+    const { mode, hint } = classifyMapDataMode(filteredPlots);
+    return { mode, hint };
+  }, [filteredPlots]);
 
   const mapRegionFallback = useMemo(() => {
     if (filteredPlots.features.length > 0) return null;
@@ -236,14 +314,6 @@ export function useAgriPlatformState() {
   useEffect(() => {
     setVillage("");
   }, [taluka]);
-
-  useEffect(() => {
-    if (district === "Jalna" && crop === "Soybean") setCrop("Banana");
-  }, [district, crop]);
-
-  useEffect(() => {
-    if (district === "Washim" && crop === "Banana") setCrop("Soybean");
-  }, [district, crop]);
 
   useEffect(() => {
     setSelectedCrop(crop || "");
@@ -327,6 +397,7 @@ export function useAgriPlatformState() {
     villageFilter,
     setVillageFilter,
     washimLoadError,
+    washimLoading,
     jalnaLoadError,
     jalnaLoading,
     filteredPlots,
@@ -349,5 +420,6 @@ export function useAgriPlatformState() {
     fieldData,
     loadedFieldCount,
     MAHARASHTRA_DISTRICTS,
+    mapDataQuality,
   };
 }
