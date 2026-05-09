@@ -61,6 +61,15 @@ export default function PlatformFilterSidebar({
             />
             AI risk zones
           </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+            <input
+              type="radio"
+              name="admLayer"
+              checked={adminMapLayer === "impact"}
+              onChange={() => setAdminMapLayer("impact")}
+            />
+            Impact intelligence (0–100 heatmap)
+          </label>
           <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-gray-400">
             <input
               type="checkbox"
@@ -74,6 +83,7 @@ export default function PlatformFilterSidebar({
 
       {variant === "survey" && (
         <Panel title="Survey layers" bodyClassName="mt-3 space-y-2">
+          <p className="text-[10px] text-gray-500 mb-1">GIS stress &amp; governance overlays</p>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
             <input
               type="radio"
@@ -90,7 +100,7 @@ export default function PlatformFilterSidebar({
               checked={surveyMapLayer === "ndvi"}
               onChange={() => setSurveyMapLayer("ndvi")}
             />
-            NDVI health
+            NDVI / canopy health
           </label>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
             <input
@@ -100,6 +110,42 @@ export default function PlatformFilterSidebar({
               onChange={() => setSurveyMapLayer("drought")}
             />
             Drought &amp; stress
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+            <input
+              type="radio"
+              name="svLayer"
+              checked={surveyMapLayer === "disease_risk"}
+              onChange={() => setSurveyMapLayer("disease_risk")}
+            />
+            Disease risk (model)
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+            <input
+              type="radio"
+              name="svLayer"
+              checked={surveyMapLayer === "yield_risk"}
+              onChange={() => setSurveyMapLayer("yield_risk")}
+            />
+            Yield risk
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+            <input
+              type="radio"
+              name="svLayer"
+              checked={surveyMapLayer === "rainfall_dev"}
+              onChange={() => setSurveyMapLayer("rainfall_dev")}
+            />
+            Rainfall deviation
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-200">
+            <input
+              type="radio"
+              name="svLayer"
+              checked={surveyMapLayer === "impact"}
+              onChange={() => setSurveyMapLayer("impact")}
+            />
+            AI impact score (composite)
           </label>
           <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-gray-400">
             <input

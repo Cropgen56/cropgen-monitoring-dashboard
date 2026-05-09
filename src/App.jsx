@@ -1,52 +1,60 @@
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import Header from "./components/Header";
-import SoilHealth from "./components/SoilHealth";
-import TimeSeriesCharts from "./components/TimeSeriesCharts";
-import SearchBar from "./components/SearchBar";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { FieldDataProvider } from "./context/FieldDataContext";
+import { AuthProvider } from "./context/AuthContext";
 import { AgriPlatformProvider } from "./context/AgriPlatformContext";
+import RequireAuth from "./components/auth/RequireAuth";
+import RootRedirect from "./components/auth/RootRedirect";
+import AdminAppLayout from "./layouts/AdminAppLayout";
+import LoginPage from "./pages/LoginPage";
+import DashboardOverviewPage from "./pages/DashboardOverviewPage";
 import SurveyPage from "./pages/SurveyPage";
 import AdminPage from "./pages/AdminPage";
 import AIInsightsPage from "./pages/AIInsightsPage";
-import HackathonStory from "./components/platform/HackathonStory";
-
-function PlatformShell() {
-  return (
-    <AgriPlatformProvider>
-      <Outlet />
-    </AgriPlatformProvider>
-  );
-}
+import GovernancePage from "./pages/GovernancePage";
+import {
+  VerificationsModulePage,
+  SchemesModulePage,
+  InsuranceModulePage,
+  GrievancesModulePage,
+  ReportsModulePage,
+  AlertsModulePage,
+  ActionsModulePage,
+  UsersModulePage,
+  SettingsModulePage,
+} from "./pages/ModulePlaceholderPage";
 
 export default function App() {
   return (
     <FieldDataProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-cg-bg font-sans text-sm text-white overflow-x-hidden">
-          <Header />
-
-          <div className="w-full max-w-[2000px] mx-auto px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 pb-8 sm:pb-12 md:pb-16">
-            <div className="mb-3 sm:mb-4 space-y-3 lg:max-w-3xl">
-              <SearchBar onLocationSelect={() => {}} />
-              <HackathonStory />
-            </div>
-
+        <AuthProvider>
+          <AgriPlatformProvider>
             <Routes>
-              <Route element={<PlatformShell />}>
-                <Route path="/" element={<Navigate to="/survey" replace />} />
-                <Route path="/survey" element={<SurveyPage />} />
-                <Route path="/admin" element={<AdminPage />} />
-                <Route path="/ai" element={<AIInsightsPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<RequireAuth />}>
+                <Route element={<AdminAppLayout />}>
+                  <Route path="/dashboard" element={<DashboardOverviewPage />} />
+                  <Route path="/governance" element={<GovernancePage />} />
+                  <Route path="/admin" element={<AdminPage />} />
+                  <Route path="/survey" element={<SurveyPage />} />
+                  <Route path="/verifications" element={<VerificationsModulePage />} />
+                  <Route path="/schemes" element={<SchemesModulePage />} />
+                  <Route path="/insurance" element={<InsuranceModulePage />} />
+                  <Route path="/grievances" element={<GrievancesModulePage />} />
+                  <Route path="/reports" element={<ReportsModulePage />} />
+                  <Route path="/alerts" element={<AlertsModulePage />} />
+                  <Route path="/actions" element={<ActionsModulePage />} />
+                  <Route path="/users" element={<UsersModulePage />} />
+                  <Route path="/settings" element={<SettingsModulePage />} />
+                  <Route path="/ai" element={<AIInsightsPage />} />
+                </Route>
               </Route>
+              <Route path="/" element={<RootRedirect />} />
+              <Route path="*" element={<RootRedirect />} />
             </Routes>
-
-            <div className="mt-4 sm:mt-6 space-y-3 sm:space-y-4 md:space-y-6">
-              <SoilHealth />
-              <TimeSeriesCharts />
-            </div>
-          </div>
-        </div>
+          </AgriPlatformProvider>
+        </AuthProvider>
       </BrowserRouter>
     </FieldDataProvider>
   );

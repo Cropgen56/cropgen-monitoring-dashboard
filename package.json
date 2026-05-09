@@ -1,8 +1,11 @@
 {
-  "name": "field-tracking-prototype",
+  "name": "cropgen-monitoring-dashboard",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,7 +13,8 @@
     "preview": "vite preview",
     "data:mh-villages": "node scripts/fetch-mh-villages.mjs",
     "data:washim": "node scripts/build-washim-soybean.mjs",
-    "data:jalna": "node scripts/build-jalna-banana.mjs"
+    "data:jalna": "node scripts/build-jalna-banana.mjs",
+    "data:mh-outline": "node scripts/build-maharashtra-outline.mjs"
   },
   "dependencies": {
     "@mapbox/togeojson": "^0.16.2",

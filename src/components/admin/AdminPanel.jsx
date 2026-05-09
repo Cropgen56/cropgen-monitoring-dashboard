@@ -10,14 +10,17 @@ import {
   getClusterAnalytics,
   getAlertsFeed,
 } from "../../data/agriStateData";
-import { CropHealthCard, SoilAnalysisCard, formatINR } from "../hackathon/fieldDetailCards";
+import { CropHealthCard, SoilAnalysisCard } from "../hackathon/fieldDetailCards";
+import { formatINR } from "../../utils/formatINR";
+import Farmer360Panel from "../governance/Farmer360Panel";
+import { downloadCsv, buildDistrictGovernanceRows, buildFarmerExportRows } from "../../utils/reportExport";
 
 const ADMIN_TABS = [
   { id: "dashboard", label: "Dashboard" },
   { id: "farmer_mapping", label: "Farmer mapping" },
   { id: "schemes", label: "Schemes" },
   { id: "alerts", label: "Alerts" },
-  { id: "actions", label: "Actions" },
+  { id: "actions", label: "Actions & reports" },
 ];
 
 const PRIORITY_DESK = [
@@ -86,6 +89,7 @@ export default function AdminPanel({
   year,
   filteredPlots,
   villageBoundary,
+  maharashtraOutline,
   mapLayer,
   mapRegionFallback,
   selectedPlotId,
@@ -94,6 +98,12 @@ export default function AdminPanel({
   selectSampleField,
   loadedFieldCount,
   isLoading = false,
+  governanceRollup = null,
+  governanceInsights = [],
+  adminMapLayer = "default",
+  setAdminMapLayer,
+  showVillageBoundary = true,
+  setShowVillageBoundary,
 }) {
   const { governmentPrograms } = useFieldData();
   const [adminTab, setAdminTab] = useState("farmer_mapping");
@@ -147,14 +157,14 @@ export default function AdminPanel({
     }`;
 
   return (
-    <div className="lg:col-span-9 space-y-4 min-w-0">
+    <div className="w-full space-y-4 min-w-0 max-w-[2000px]">
       {/* Header */}
-      <div className="rounded-xl border border-[#1a3a22] bg-[#0a120d]/90 px-4 py-4 shadow-md">
+      <div className="rounded-xl border border-white/[0.08] bg-[#111820] px-4 py-4 shadow-md">
         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cg-accent">
           Government admin
         </p>
         <p className="mt-1 text-xs text-gray-500">
-          Dashboard, farmer records, schemes &amp; alerts — data from FieldDataContext
+          AI-assisted verification, impact intelligence, schemes &amp; alerts — demo governance stack
         </p>
         <nav className="mt-4 flex flex-wrap gap-2" aria-label="Admin sections">
           {ADMIN_TABS.map((t) => (
@@ -163,6 +173,39 @@ export default function AdminPanel({
             </button>
           ))}
         </nav>
+        {setAdminMapLayer && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-4">
+            <span className="text-[10px] font-bold uppercase text-gray-500">Map overlay</span>
+            {[
+              { id: "default", label: "Crop health" },
+              { id: "risk", label: "AI risk zones" },
+              { id: "impact", label: "Impact heatmap" },
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setAdminMapLayer(id)}
+                className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold ${
+                  adminMapLayer === id
+                    ? "bg-cg-accent/25 text-cg-accent ring-1 ring-cg-accent/40"
+                    : "bg-black/30 text-gray-400 hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            {setShowVillageBoundary && (
+              <label className="ml-auto flex cursor-pointer items-center gap-2 text-[11px] text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={showVillageBoundary}
+                  onChange={(e) => setShowVillageBoundary(e.target.checked)}
+                />
+                Area outline
+              </label>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Dashboard */}
@@ -206,6 +249,51 @@ export default function AdminPanel({
               </p>
             </div>
           </div>
+
+          {governanceRollup && (
+            <div className="rounded-2xl border border-violet-500/25 bg-violet-950/15 p-4 shadow-md">
+              <h3 className="text-sm font-bold text-violet-200 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-violet-300" />
+                Impact intelligence (district roll-up)
+              </h3>
+              <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+                <div>
+                  <p className="text-gray-500">Avg impact</p>
+                  <p className="text-lg font-bold text-white">{governanceRollup.avgImpactScore}/100</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Villages impacted</p>
+                  <p className="text-lg font-bold text-amber-200">{governanceRollup.villagesImpacted}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Area affected (ha)</p>
+                  <p className="text-lg font-bold text-sky-200">{governanceRollup.totalAreaAffectedHa}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Critical parcels</p>
+                  <p className="text-lg font-bold text-red-300">{governanceRollup.criticalPlots}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-[10px] text-gray-500">
+                Bands: Stable 0–20 · Mild 21–40 · Moderate 41–60 · High 61–80 · Critical 81–100
+              </p>
+            </div>
+          )}
+
+          {governanceInsights?.length > 0 && (
+            <div className="rounded-2xl border border-cg-accent/25 bg-[#081208] p-4 shadow-md">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-cg-accent mb-2">
+                AI governance insights
+              </h3>
+              <ul className="space-y-1.5 text-[11px] text-gray-300">
+                {governanceInsights.slice(0, 5).map((line, i) => (
+                  <li key={i} className="border-l-2 border-cg-accent/30 pl-2">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-4 shadow-md">
             <h3 className="flex items-center gap-2 text-sm font-bold text-white">
@@ -284,6 +372,7 @@ export default function AdminPanel({
             <AgriMap
               plotData={filteredPlots}
               villageBoundary={villageBoundary}
+              maharashtraOutline={maharashtraOutline}
               mapLayer={mapLayer}
               platformMode="admin"
               selectedPlotId={selectedPlotId}
@@ -342,6 +431,30 @@ export default function AdminPanel({
                 <CropHealthCard p={p} />
                 <SoilAnalysisCard p={p} />
 
+                <div className="rounded-2xl border border-amber-500/30 bg-amber-950/10 p-4 shadow-md">
+                  <h3 className="text-sm font-bold text-amber-100">Smart verification</h3>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Declared vs AI-detected crop, land linkage confidence (demo).
+                  </p>
+                  <dl className="mt-3 space-y-2">
+                    {row("Declared crop", p.declaredCrop || p.cropType)}
+                    {row("AI detected crop", p.aiDetectedCrop || "—")}
+                    {row("Crop match", `${p.verificationCropMatchPct ?? "—"}%`)}
+                    {row("Land / survey match", `${p.verificationLandMatchPct ?? "—"}%`)}
+                    {row(
+                      "Verification risk",
+                      p.verificationRiskLevel || "—",
+                      p.verificationRiskLevel === "High"
+                        ? "text-red-300 font-bold text-right"
+                        : p.verificationRiskLevel === "Medium"
+                          ? "text-amber-200 font-semibold text-right"
+                          : "text-emerald-300 text-right",
+                    )}
+                  </dl>
+                </div>
+
+                <Farmer360Panel p={p} district={district} />
+
                 {/* Government data — mockup layout */}
                 <div className="rounded-2xl border border-emerald-800/40 bg-[#081208] p-4 shadow-md">
                   <h3 className="text-sm font-bold text-white">Government data</h3>
@@ -398,11 +511,15 @@ export default function AdminPanel({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-3 text-center shadow-md">
-                    <p className="text-[10px] text-gray-500">AI risk score</p>
+                    <p className="text-[10px] text-gray-500">Legacy AI risk</p>
                     <p className="text-2xl font-bold text-amber-200">{aiRiskScore(p)}</p>
                   </div>
                   <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-3 text-center shadow-md">
-                    <p className="text-[10px] text-gray-500">Productivity</p>
+                    <p className="text-[10px] text-gray-500">Gov. impact score</p>
+                    <p className="text-2xl font-bold text-violet-200">{p.governanceImpactScore ?? "—"}</p>
+                  </div>
+                  <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-3 text-center shadow-md col-span-2">
+                    <p className="text-[10px] text-gray-500">Productivity index</p>
                     <p className="text-2xl font-bold text-lime-400">{productivityScore(p)}</p>
                   </div>
                 </div>
@@ -500,6 +617,19 @@ export default function AdminPanel({
             Rule-based alerts across loaded fields: <strong>{loadedFieldCount}</strong>
           </div>
 
+          <div className="grid gap-2 sm:grid-cols-3">
+            {[
+              { cat: "Weather", ex: "Drought / heatwave / rainfall anomaly flags" },
+              { cat: "Crop", ex: "Stress, disease probability, pest signals" },
+              { cat: "Administrative", ex: "Fraud risk, duplicates, low scheme uptake" },
+            ].map((x) => (
+              <div key={x.cat} className="rounded-lg border border-white/10 bg-black/25 p-3 text-[10px] text-gray-400">
+                <p className="font-bold text-white text-xs mb-1">{x.cat}</p>
+                {x.ex}
+              </div>
+            ))}
+          </div>
+
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-400" />
             Priority desk alerts (demo)
@@ -549,6 +679,40 @@ export default function AdminPanel({
       {/* Actions */}
       {adminTab === "actions" && (
         <div className="space-y-3 max-w-2xl ">
+          <div className="rounded-xl border border-white/10 bg-[#0a180f] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-2">
+              Reporting (client-side demo)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  downloadCsv(
+                    `district-impact-${district || "export"}.csv`,
+                    buildDistrictGovernanceRows(governanceRollup, district),
+                  )
+                }
+                className="rounded-lg bg-cg-accent/90 px-3 py-2 text-xs font-bold text-[#0c2214] hover:brightness-110"
+              >
+                District impact (CSV)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  downloadCsv(
+                    `farmers-verification-${district || "export"}.csv`,
+                    buildFarmerExportRows(filteredPlots),
+                  )
+                }
+                className="rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10"
+              >
+                Farmers / verification (CSV)
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500 mt-2">
+              PDF / Excel would plug into the same roll-up payloads in production.
+            </p>
+          </div>
           {ACTION_ITEMS.map((a) => (
             <button
               key={a.id}

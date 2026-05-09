@@ -24,6 +24,11 @@ import {
   sanitizeFeatureCollection,
   classifyMapDataMode,
 } from "../data/monitoringDefinitions";
+import {
+  enrichGovernanceFeatureCollection,
+  aggregateDistrictGovernance,
+  generateGovernanceInsights,
+} from "../data/governanceEngine";
 
 const DISTRICT_GEOJSON_MODULES = import.meta.glob("../data/*.geojson", {
   eager: true,
@@ -75,7 +80,8 @@ export function useAgriPlatformState() {
     fieldData,
   } = useFieldData();
 
-  const [district, setDistrict] = useState("Washim");
+  /** Empty = Maharashtra-wide view (state outline only) until a district is chosen. */
+  const [district, setDistrict] = useState("");
   const [taluka, setTaluka] = useState("");
   const [village, setVillage] = useState("");
   const [crop, setCrop] = useState("Soybean");
@@ -89,6 +95,8 @@ export function useAgriPlatformState() {
 
   const [villagesByDistrictCatalog, setVillagesByDistrictCatalog] = useState(null);
   const [villageFilter, setVillageFilter] = useState("");
+  /** Simplified OSM Maharashtra boundary for map highlight (see public/data/maharashtra-state-outline.geojson). */
+  const [maharashtraOutline, setMaharashtraOutline] = useState(null);
 
   const [washimSoybeanPlots, setWashimSoybeanPlots] = useState(null);
   const [washimLoading, setWashimLoading] = useState(true);
@@ -136,7 +144,8 @@ export function useAgriPlatformState() {
     if (jalnaFetchRef.current.inFlight || jalnaFetchRef.current.failed) return;
 
     let cancelled = false;
-    jalnaFetchRef.current.inFlight = true;
+    const jalnaFetchState = jalnaFetchRef.current;
+    jalnaFetchState.inFlight = true;
     setJalnaLoading(true);
     setJalnaLoadError(null);
 
@@ -148,23 +157,23 @@ export function useAgriPlatformState() {
       .then((raw) => {
         if (cancelled) return;
         setJalnaBananaPlots(enrichJalnaBananaFeatureCollection(raw));
-        jalnaFetchRef.current.failed = false;
+        jalnaFetchState.failed = false;
       })
       .catch(() => {
         if (!cancelled) {
           setJalnaBananaPlots(null);
-          jalnaFetchRef.current.failed = true;
+          jalnaFetchState.failed = true;
           setJalnaLoadError("Could not load Jalna banana plots (GeoJSON).");
         }
       })
       .finally(() => {
-        jalnaFetchRef.current.inFlight = false;
+        jalnaFetchState.inFlight = false;
         if (!cancelled) setJalnaLoading(false);
       });
 
     return () => {
       cancelled = true;
-      jalnaFetchRef.current.inFlight = false;
+      jalnaFetchState.inFlight = false;
     };
   }, [district, jalnaBananaPlots]);
 
@@ -179,9 +188,30 @@ export function useAgriPlatformState() {
   }, [basePlots, washimSoybeanPlots, jalnaBananaPlots]);
 
   const fullPlots = useMemo(
-    () => sanitizeFeatureCollection(fullPlotsRaw, { idPrefix: "full" }),
+    () =>
+      enrichGovernanceFeatureCollection(
+        sanitizeFeatureCollection(fullPlotsRaw, { idPrefix: "full" }),
+      ),
     [fullPlotsRaw],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/data/maharashtra-state-outline.geojson")
+      .then((r) => {
+        if (!r.ok) throw new Error("mh outline");
+        return r.json();
+      })
+      .then((data) => {
+        if (!cancelled) setMaharashtraOutline(data);
+      })
+      .catch(() => {
+        if (!cancelled) setMaharashtraOutline(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -227,21 +257,34 @@ export function useAgriPlatformState() {
   }, [district]);
 
   const filteredPlotsRaw = useMemo(() => {
+    if (!district) {
+      return { type: "FeatureCollection", features: [] };
+    }
     if (district === "Washim" && washimSoybeanPlots?.features?.length) {
       return washimSoybeanPlots;
     }
     if (district === "Jalna" && jalnaBananaPlots?.features?.length) {
       return jalnaBananaPlots;
     }
-    if (district) {
-      return districtBoundaryPlots;
-    }
     return districtBoundaryPlots;
   }, [district, districtBoundaryPlots, washimSoybeanPlots, jalnaBananaPlots]);
 
   const filteredPlots = useMemo(
-    () => sanitizeFeatureCollection(filteredPlotsRaw, { idPrefix: "plot" }),
+    () =>
+      enrichGovernanceFeatureCollection(
+        sanitizeFeatureCollection(filteredPlotsRaw, { idPrefix: "plot" }),
+      ),
     [filteredPlotsRaw],
+  );
+
+  const governanceRollup = useMemo(
+    () => aggregateDistrictGovernance(filteredPlots),
+    [filteredPlots],
+  );
+
+  const governanceInsights = useMemo(
+    () => generateGovernanceInsights({ district, rollup: governanceRollup }),
+    [district, governanceRollup],
   );
 
   const mapDataQuality = useMemo(() => {
@@ -337,7 +380,11 @@ export function useAgriPlatformState() {
   }, [showVillageBoundary, district, washimSoybeanPlots, jalnaBananaPlots]);
 
   const adminMapLayerComputed =
-    adminMapLayer === "risk" ? "risk" : "default";
+    adminMapLayer === "risk"
+      ? "risk"
+      : adminMapLayer === "impact"
+        ? "impact"
+        : "default";
 
   const clusterRows = useMemo(
     () => getClusterAnalytics(district),
@@ -421,5 +468,8 @@ export function useAgriPlatformState() {
     loadedFieldCount,
     MAHARASHTRA_DISTRICTS,
     mapDataQuality,
+    governanceRollup,
+    governanceInsights,
+    maharashtraOutline,
   };
 }

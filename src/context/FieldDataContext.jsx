@@ -8,7 +8,7 @@ const toNum = (v) => (v == null || v === "" ? 0 : Number(v));
 const mean = (arr) =>
   !arr || !arr.length ? 0 : arr.reduce((a, b) => a + b, 0) / arr.length;
 
-function buildFieldData(features, selectedCrop, selectedSampleFieldId) {
+function buildFieldData(features, selectedCrop, _selectedSampleFieldId) {
   const count = features.length;
 
   const areas = features.map((f) => toNum(f.properties?.area_ha));

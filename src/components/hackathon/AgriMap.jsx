@@ -30,6 +30,10 @@ import {
   surveyRiskColor,
   surveyRiskLevelFromProps,
 } from "../../data/monitoringDefinitions";
+import {
+  governanceHeatColor,
+  rainfallDeviationStyle,
+} from "../../data/governanceEngine";
 import SatelliteScanLoader from "../ui/SatelliteScanLoader";
 
 const ACRES_PER_HA = 2.471053814671738;
@@ -194,19 +198,26 @@ function buildSurveyPopupHtml(feature) {
   const yieldStr =
     typeof yieldVal === "number" ? `${yieldVal} t/ac` : esc(String(yieldVal));
   const risk = surveyRiskLevelFromProps(p);
+  const impact =
+    p.governanceImpactScore != null
+      ? `${p.governanceImpactScore} (${p.governanceImpactLabel || "—"})`
+      : "—";
   return `
 <div style="min-width:200px;font-family:system-ui,sans-serif;font-size:12px;color:#e2e8f0;">
   <div style="font-weight:700;color:#fff;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:6px;">Field insight</div>
   <div style="display:grid;gap:6px;">
     <div><span style="color:#94a3b8;">Crop</span><br/><strong style="color:#f8fafc;">${crop}</strong></div>
     <div><span style="color:#94a3b8;">Health (NDVI)</span><br/><strong style="color:#86efac;">${ndviStr}</strong></div>
+    <div><span style="color:#94a3b8;">AI impact score</span><br/><strong style="color:#fdba74;">${esc(impact)}</strong></div>
     <div><span style="color:#94a3b8;">Predicted yield</span><br/><strong style="color:#fde047;">${yieldStr}</strong></div>
     <div><span style="color:#94a3b8;">Risk level</span><br/><strong style="color:${surveyRiskColor(risk)};">${risk}</strong></div>
   </div>
 </div>`;
 }
 
-const FitBounds = ({ bounds }) => {
+const DEFAULT_FIT_OPTIONS = { padding: [40, 40], maxZoom: 15, animate: true };
+
+const FitBounds = ({ bounds, fitOptions = DEFAULT_FIT_OPTIONS }) => {
   const map = useMap();
   const prev = useRef(null);
 
@@ -215,21 +226,83 @@ const FitBounds = ({ bounds }) => {
       prev.current = null;
       return;
     }
-    const key = JSON.stringify(bounds);
+    const key = JSON.stringify({ bounds, fitOptions });
     if (prev.current === key) return;
     prev.current = key;
     const t = setTimeout(() => {
       try {
-        map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15, animate: true });
+        map.invalidateSize({ animate: false });
+        map.fitBounds(bounds, { ...DEFAULT_FIT_OPTIONS, ...fitOptions });
       } catch {
         /* ignore */
       }
     }, 80);
     return () => clearTimeout(t);
-  }, [bounds, map]);
+  }, [bounds, fitOptions, map]);
 
   return null;
 };
+
+/**
+ * Maharashtra “all districts” view: full outline in frame, centered on turf centroid.
+ * Retries after layout / flex sizing; zooms out until LatLngBounds fully contains the state bbox.
+ */
+function FitMaharashtraStateView({ cornerBounds, centroid }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!cornerBounds || !centroid) return;
+
+    const latLngBounds = L.latLngBounds(cornerBounds[0], cornerBounds[1]);
+    const center = L.latLng(centroid[0], centroid[1]);
+
+    const apply = () => {
+      try {
+        map.invalidateSize({ animate: false });
+        const size = map.getSize();
+        if (size.x < 2 || size.y < 2) return;
+
+        const edge = Math.round(Math.min(size.x, size.y) * 0.12);
+        const pad = Math.max(96, edge);
+        map.fitBounds(latLngBounds, {
+          padding: [pad, pad],
+          animate: false,
+          maxZoom: 18,
+        });
+        map.panTo(center, { animate: false });
+
+        let guard = 0;
+        while (guard < 8 && !map.getBounds().contains(latLngBounds)) {
+          const z = map.getZoom();
+          if (z <= 1) break;
+          map.setZoom(z - 1, { animate: false });
+          map.panTo(center, { animate: false });
+          guard += 1;
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const r0 = requestAnimationFrame(() => {
+      requestAnimationFrame(apply);
+    });
+    const t1 = window.setTimeout(apply, 150);
+    const t2 = window.setTimeout(apply, 450);
+    const onResize = () => {
+      apply();
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      cancelAnimationFrame(r0);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [map, cornerBounds, centroid]);
+
+  return null;
+}
 
 /** When there are no plot features (loading or filter mismatch), pan to a known district view. */
 function RegionFallback({ bounds, regionFallback }) {
@@ -269,6 +342,57 @@ const VILLAGE_OUTLINE_STYLE = {
   opacity: 0.85,
 };
 
+/** Maharashtra state boundary overlay (matches CropGen accent, visible on satellite basemap). */
+const MAHARASHTRA_STATE_STYLE = {
+  fillColor: "#79c24a",
+  fillOpacity: 0.16,
+  color: "#79c24a",
+  weight: 3,
+  opacity: 0.95,
+};
+
+function bboxToLeafletBounds(fc) {
+  if (!fc?.features?.length) return null;
+  try {
+    const b = turf.bbox(fc);
+    const [minLng, minLat, maxLng, maxLat] = b;
+    return [
+      [minLat, minLng],
+      [maxLat, maxLng],
+    ];
+  } catch {
+    return null;
+  }
+}
+
+/** Expand bbox so stroke, padding, and centroid pan do not clip the outline. */
+function inflateLatLngBounds(bounds, ratio = 0.12) {
+  if (!bounds) return null;
+  const [[lat1, lng1], [lat2, lng2]] = bounds;
+  const minLat = Math.min(lat1, lat2);
+  const maxLat = Math.max(lat1, lat2);
+  const minLng = Math.min(lng1, lng2);
+  const maxLng = Math.max(lng1, lng2);
+  const dLat = (maxLat - minLat) * ratio;
+  const dLng = (maxLng - minLng) * ratio;
+  return [
+    [minLat - dLat, minLng - dLng],
+    [maxLat + dLat, maxLng + dLng],
+  ];
+}
+
+function featureCollectionCentroidLatLng(fc) {
+  if (!fc?.features?.length) return null;
+  try {
+    const c = turf.centroid(fc);
+    const [lng, lat] = c.geometry.coordinates;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return [lat, lng];
+  } catch {
+    return null;
+  }
+}
+
 const PlotGeoJsonLayer = memo(function PlotGeoJsonLayer({
   plotData,
   styleFor,
@@ -291,6 +415,8 @@ const PlotGeoJsonLayer = memo(function PlotGeoJsonLayer({
 export default function AgriMap({
   plotData,
   villageBoundary,
+  /** Optional FeatureCollection — simplified Maharashtra outline from /data/maharashtra-state-outline.geojson */
+  maharashtraOutline = null,
   mapLayer,
   platformMode,
   selectedPlotId,
@@ -309,19 +435,29 @@ export default function AgriMap({
     hoverHtmlCacheRef.current.clear();
   }, [deferredPlotData]);
 
+  const isStateOutlineExtent =
+    !deferredPlotData?.features?.length && Boolean(maharashtraOutline?.features?.length);
+
   const bounds = useMemo(() => {
-    if (!deferredPlotData?.features?.length) return null;
-    try {
-      const b = turf.bbox(deferredPlotData);
-      const [minLng, minLat, maxLng, maxLat] = b;
-      return [
-        [minLat, minLng],
-        [maxLat, maxLng],
-      ];
-    } catch {
-      return null;
+    if (deferredPlotData?.features?.length) {
+      const fromPlots = bboxToLeafletBounds(deferredPlotData);
+      if (fromPlots) return fromPlots;
     }
-  }, [deferredPlotData]);
+    const fromState = bboxToLeafletBounds(maharashtraOutline);
+    return isStateOutlineExtent ? inflateLatLngBounds(fromState, 0.12) : fromState;
+  }, [deferredPlotData, maharashtraOutline, isStateOutlineExtent]);
+
+  const maharashtraCentroid = useMemo(
+    () => featureCollectionCentroidLatLng(maharashtraOutline),
+    [maharashtraOutline],
+  );
+
+  const onEachMaharashtraFeature = useCallback((_, layer) => {
+    layer.bindTooltip(
+      `<div style="font-size:12px;font-weight:600;color:#0f172a;">Maharashtra</div><div style="font-size:11px;color:#475569;">State boundary (OpenStreetMap)</div>`,
+      { sticky: true, direction: "auto", className: "agri-mh-state-tip", opacity: 1 },
+    );
+  }, []);
 
   const styleFor = useCallback(
     (feature) => {
@@ -344,6 +480,11 @@ export default function AgriMap({
         const r = aiRiskZoneColors(feature);
         fill = r.fill;
         stroke = r.stroke;
+      } else if (platformMode === "admin" && mapLayer === "impact") {
+        const sc = Number(p.governanceImpactScore ?? 0);
+        const h = governanceHeatColor(sc);
+        fill = h.fill;
+        stroke = h.stroke;
       } else if (platformMode === "survey") {
         if (mapLayer === "crop_class") {
           const key = Object.keys(CROP_HEX).find(
@@ -359,6 +500,22 @@ export default function AgriMap({
           const d = droughtStressColors(p.droughtClass);
           fill = d.fill;
           stroke = d.stroke;
+        } else if (mapLayer === "disease_risk") {
+          const h = governanceHeatColor(Number(p.governanceDiseaseRisk ?? 0));
+          fill = h.fill;
+          stroke = h.stroke;
+        } else if (mapLayer === "yield_risk") {
+          const h = governanceHeatColor(Number(p.governanceYieldRisk ?? 0));
+          fill = h.fill;
+          stroke = h.stroke;
+        } else if (mapLayer === "rainfall_dev") {
+          const r = rainfallDeviationStyle(p.governanceRainfallDeviationPct);
+          fill = r.fill;
+          stroke = r.stroke;
+        } else if (mapLayer === "impact") {
+          const h = governanceHeatColor(Number(p.governanceImpactScore ?? 0));
+          fill = h.fill;
+          stroke = h.stroke;
         } else {
           fill = healthBucketColor(p.cropHealth);
           stroke = "#14532d";
@@ -453,8 +610,8 @@ export default function AgriMap({
   return (
     <div className="relative h-[min(62vh,560px)] w-full overflow-hidden rounded-xl border border-green-900/30 bg-black/20">
       <MapContainer
-        center={[20.5937, 78.9629]}
-        zoom={7}
+        center={maharashtraCentroid || [19.7515, 75.7139]}
+        zoom={6}
         className="h-full w-full"
         zoomControl
         attributionControl={false}
@@ -464,6 +621,16 @@ export default function AgriMap({
           subdomains={["mt0", "mt1", "mt2", "mt3"]}
           maxZoom={20}
         />
+
+        {maharashtraOutline?.features?.length > 0 && (
+          <GeoJSON
+            key="maharashtra-state-outline"
+            data={maharashtraOutline}
+            style={() => MAHARASHTRA_STATE_STYLE}
+            onEachFeature={onEachMaharashtraFeature}
+            renderer={canvasRenderer}
+          />
+        )}
 
         {villageBoundary && (
           <GeoJSON data={villageBoundary} style={VILLAGE_OUTLINE_STYLE} renderer={canvasRenderer} />
@@ -503,7 +670,11 @@ export default function AgriMap({
           ))}
 
         <RegionFallback bounds={bounds} regionFallback={regionFallback} />
-        <FitBounds bounds={bounds} />
+        {isStateOutlineExtent && bounds && maharashtraCentroid ? (
+          <FitMaharashtraStateView cornerBounds={bounds} centroid={maharashtraCentroid} />
+        ) : (
+          <FitBounds bounds={bounds} fitOptions={DEFAULT_FIT_OPTIONS} />
+        )}
       </MapContainer>
 
       {loaderVisible && <SatelliteScanLoader />}

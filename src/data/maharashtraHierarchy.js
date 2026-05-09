@@ -15,7 +15,6 @@ export function getTalukas(district) {
  * merged with demo-plot villages, optional taluka-first sort, optional text filter.
  */
 export function buildVillageOptions({
-  district,
   taluka,
   districtVillageList,
   demoVillagesInDistrict,

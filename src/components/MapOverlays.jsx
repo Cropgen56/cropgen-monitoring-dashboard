@@ -138,7 +138,7 @@ const DateSelector = () => {
                 <input
                   type="date"
                   className="bg-cg-panel-2 text-white px-3 py-2 rounded-lg outline-none text-sm border border-green-500/20 focus:border-green-500/50 transition-colors"
-                  onChange={(e) => setShowCalendar(false)}
+                  onChange={() => setShowCalendar(false)}
                 />
               </div>
             </>

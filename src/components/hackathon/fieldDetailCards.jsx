@@ -2,12 +2,6 @@ import React from "react";
 import { Leaf } from "lucide-react";
 import { BANANA_CROP_IMAGE_URL, SOYBEAN_CROP_IMAGE_URL } from "../../data/cropAssets";
 
-export function formatINR(n) {
-  if (n >= 10000000) return `₹${(n / 10000000).toFixed(2)} Cr`;
-  if (n >= 100000) return `₹${(n / 100000).toFixed(2)} L`;
-  return `₹${n.toLocaleString("en-IN")}`;
-}
-
 function isSoybeanCropName(ct) {
   const c = String(ct || "").toLowerCase();
   return c === "soybean" || c === "soyabean";

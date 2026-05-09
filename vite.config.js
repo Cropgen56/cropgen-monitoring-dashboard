@@ -7,4 +7,16 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  build: {
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-map": ["react-leaflet", "leaflet-draw"],
+          "vendor-charts": ["recharts"],
+        },
+      },
+    },
+  },
 });

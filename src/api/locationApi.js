@@ -17,7 +17,7 @@ const fetchWithCORS = async (url) => {
     if (directResponse.ok) {
       return await directResponse.json();
     }
-  } catch (e) {
+  } catch {
     console.log('Direct fetch failed, trying CORS proxies...');
   }
 
@@ -213,7 +213,7 @@ export const locationApi = {
           if (!data.error) {
             countries = data.data;
           }
-        } catch (e) {
+        } catch {
           // Try cached data
           const cached = localStorage.getItem('cached_countries');
           if (cached) {
@@ -308,7 +308,7 @@ export const locationApi = {
         if (!data.error) {
           countries = data.data;
         }
-      } catch (e) {
+      } catch {
         const cached = localStorage.getItem('cached_countries');
         if (cached) {
           countries = JSON.parse(cached);
@@ -337,7 +337,6 @@ export const locationApi = {
       if (query.includes(',')) {
         const parts = query.split(',').map(s => s.trim());
         if (parts.length >= 2) {
-          const possibleCity = parts[0];
           const possibleCountry = parts[parts.length - 1];
           
           // Find the country

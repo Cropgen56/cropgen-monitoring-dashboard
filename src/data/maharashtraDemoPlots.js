@@ -316,11 +316,11 @@ export function getMaharashtraDemoPlots() {
     },
     properties: {
       ...f.props,
-      ndviSeries: NDVI_15.map((d, i) => ({
+      ndviSeries: NDVI_15.map((d) => ({
         ...d,
         2025: d["2025"] - index * 0.02,
       })),
-      waterSeries: WATER_15.map((d, i) => ({
+      waterSeries: WATER_15.map((d) => ({
         ...d,
         2025: d["2025"] - index * 0.015,
       })),

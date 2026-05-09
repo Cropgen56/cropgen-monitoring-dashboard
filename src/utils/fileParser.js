@@ -2,7 +2,7 @@
 export const parseGeoJSON = (jsonText) => {
   try {
     return JSON.parse(jsonText);
-  } catch (error) {
+  } catch {
     throw new Error('Invalid GeoJSON format');
   }
 };

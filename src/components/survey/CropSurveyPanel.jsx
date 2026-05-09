@@ -22,10 +22,21 @@ import { surveyMeta, innovationHighlights, governmentUseCases } from "../../data
 /**
  * Satellite / crop monitoring workspace: map layers, classification legend, yield tools.
  */
+const SURVEY_LAYERS = [
+  { id: "crop_class", label: "Crop class" },
+  { id: "ndvi", label: "NDVI" },
+  { id: "drought", label: "Drought" },
+  { id: "disease_risk", label: "Disease" },
+  { id: "yield_risk", label: "Yield risk" },
+  { id: "rainfall_dev", label: "Rainfall" },
+  { id: "impact", label: "Impact" },
+];
+
 export default function CropSurveyPanel({
   district,
   filteredPlots,
   villageBoundary,
+  maharashtraOutline,
   mapLayer,
   mapRegionFallback,
   selectedPlotId,
@@ -35,11 +46,45 @@ export default function CropSurveyPanel({
   historicalYield,
   selectedProperties: p,
   isLoading = false,
+  setSurveyMapLayer,
+  showValidation,
+  setShowValidation,
 }) {
   const [govMode, setGovMode] = useState("g1");
 
   return (
-    <div className="lg:col-span-9 grid gap-4 lg:grid-cols-9">
+    <div className="w-full grid gap-4 lg:grid-cols-9">
+      {setSurveyMapLayer && (
+        <div className="lg:col-span-9 flex flex-wrap items-center gap-2 rounded-xl border border-white/[0.08] bg-[#111820] p-3">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500 w-full sm:w-auto">
+            Map layers
+          </span>
+          {SURVEY_LAYERS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setSurveyMapLayer(id)}
+              className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                mapLayer === id
+                  ? "bg-cg-accent/25 text-cg-accent ring-1 ring-cg-accent/40"
+                  : "bg-black/30 text-gray-400 hover:text-white"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {setShowValidation && (
+            <label className="ml-auto flex cursor-pointer items-center gap-2 text-[11px] text-gray-400">
+              <input
+                type="checkbox"
+                checked={!!showValidation}
+                onChange={(e) => setShowValidation(e.target.checked)}
+              />
+              Validation pts
+            </label>
+          )}
+        </div>
+      )}
       <section className="lg:col-span-6 space-y-2 min-w-0">
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">
           District map (satellite)
@@ -47,6 +92,7 @@ export default function CropSurveyPanel({
         <AgriMap
           plotData={filteredPlots}
           villageBoundary={villageBoundary}
+          maharashtraOutline={maharashtraOutline}
           mapLayer={mapLayer}
           platformMode="survey"
           selectedPlotId={selectedPlotId}

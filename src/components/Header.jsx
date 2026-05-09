@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { Bell, LayoutDashboard, Satellite, Settings, Sparkles } from "lucide-react";
+import { Bell, Landmark, LayoutDashboard, Satellite, Settings, Sparkles } from "lucide-react";
 import img from "../assets/logo.png";
 import { PLATFORM_TAGLINE } from "../data/agriStateData";
 
@@ -16,7 +16,7 @@ export default function Header() {
             <div className="flex items-center shrink-0 gap-3 min-w-0">
               <img
                 src={img}
-                alt="Logo"
+                alt="CropGen"
                 className="h-6 sm:h-8 md:h-10 lg:h-12 w-auto"
               />
               <p className="hidden md:block max-w-xl text-[10px] sm:text-xs text-gray-400 leading-snug border-l border-white/10 pl-3">
@@ -43,7 +43,7 @@ export default function Header() {
             className="flex flex-1 min-w-0 justify-center lg:justify-center"
             aria-label="Main workspace"
           >
-            <div className="flex w-full max-w-lg gap-1 sm:gap-1.5 bg-[#354A3D] rounded-full p-1 sm:p-1.5 shadow-inner">
+            <div className="flex w-full max-w-2xl gap-1 sm:gap-1.5 bg-[#354A3D] rounded-full p-1 sm:p-1.5 shadow-inner overflow-x-auto scrollbar-hide">
               <NavLink
                 to="/survey"
                 className={({ isActive }) =>
@@ -65,6 +65,17 @@ export default function Header() {
               >
                 <LayoutDashboard className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 opacity-90" />
                 Admin
+              </NavLink>
+              <NavLink
+                to="/governance"
+                className={({ isActive }) =>
+                  `${navPill} ${
+                    isActive ? "bg-[#0C2214] text-white shadow-sm" : "text-gray-300 hover:text-white hover:bg-white/5"
+                  }`
+                }
+              >
+                <Landmark className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 opacity-90" />
+                Governance
               </NavLink>
               <NavLink
                 to="/ai"

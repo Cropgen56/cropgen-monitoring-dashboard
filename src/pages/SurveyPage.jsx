@@ -1,24 +1,16 @@
 import React from "react";
-import { PLATFORM_TAGLINE } from "../data/agriStateData";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
-import PlatformFilterSidebar from "../components/platform/PlatformFilterSidebar";
 import CropSurveyPanel from "../components/survey/CropSurveyPanel";
-import PageHero from "../components/ui/PageHero";
 import DataQualityBanner from "../components/platform/DataQualityBanner";
+import SoilHealth from "../components/SoilHealth";
+import TimeSeriesCharts from "../components/TimeSeriesCharts";
 
 export default function SurveyPage() {
   const s = useAgriPlatform();
   const mapLayer = s.surveyMapLayer;
 
   return (
-    <div className="space-y-4">
-      <PageHero
-        accent="sky"
-        eyebrow="Satellite crop monitoring"
-        title="Classification, NDVI, stress layers, and yield benchmarks"
-        description={PLATFORM_TAGLINE}
-      />
-
+    <div className="space-y-4 p-5 md:p-6">
       <DataQualityBanner mapDataQuality={s.mapDataQuality} />
 
       {s.washimLoadError && s.district === "Washim" && (
@@ -37,31 +29,37 @@ export default function SurveyPage() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-12">
-        <PlatformFilterSidebar variant="survey" {...s} />
-        <CropSurveyPanel
-          district={s.district}
-          filteredPlots={s.filteredPlots}
-          villageBoundary={s.villageBoundary}
-          mapLayer={mapLayer}
-          mapRegionFallback={s.mapRegionFallback}
-          selectedPlotId={s.selectedSampleFieldId}
-          onPlotClick={s.handlePlotClick}
-          showValidationPoints={s.showValidation && s.district === "Jalgaon"}
-          yieldCompareData={s.yieldCompareData}
-          historicalYield={s.historicalYield}
-          selectedProperties={s.selectedProperties}
-          isLoading={s.washimLoading || s.jalnaLoading}
-        />
-      </div>
+      <CropSurveyPanel
+        district={s.district}
+        filteredPlots={s.filteredPlots}
+        villageBoundary={s.villageBoundary}
+        maharashtraOutline={s.maharashtraOutline}
+        mapLayer={mapLayer}
+        mapRegionFallback={s.mapRegionFallback}
+        selectedPlotId={s.selectedSampleFieldId}
+        onPlotClick={s.handlePlotClick}
+        showValidationPoints={s.showValidation && s.district === "Jalgaon"}
+        yieldCompareData={s.yieldCompareData}
+        historicalYield={s.historicalYield}
+        selectedProperties={s.selectedProperties}
+        isLoading={s.washimLoading || s.jalnaLoading}
+        setSurveyMapLayer={s.setSurveyMapLayer}
+        showValidation={s.showValidation}
+        setShowValidation={s.setShowValidation}
+      />
 
       {s.fieldData && (
-        <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-center text-[11px] text-gray-400">
-          Charts below use the selected field:{" "}
+        <div className="rounded-lg border border-white/[0.08] bg-[#111820] px-3 py-2 text-center text-[11px] text-gray-400">
+          Charts use the selected field:{" "}
           <span className="font-semibold text-cg-accent">{s.fieldData.selectionLabel}</span> —{" "}
           {s.fieldData.selectionSubtitle}
         </div>
       )}
+
+      <div className="space-y-4 pt-2">
+        <SoilHealth />
+        <TimeSeriesCharts />
+      </div>
     </div>
   );
 }
