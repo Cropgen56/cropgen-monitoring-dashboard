@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Thesis PDF tooling (local venv + temp extract)
+.venv-thesis
+.thesis_extracted.txt
