@@ -190,13 +190,21 @@ export default function DashboardOverviewPage() {
               plotData={s.filteredPlots}
               villageBoundary={s.villageBoundary}
               maharashtraOutline={s.maharashtraOutline}
+              maharashtraDistrictsBaseOutline={s.maharashtraDistrictsOutline}
+              selectedMhDistrict={s.district}
+              showMaharashtraOutline={s.isMaharashtraContext}
+              indiaCountryOutline={s.indiaCountryOutline}
+              indiaStatesOutline={s.indiaStatesOutline}
+              indiaSelectedStateCode={s.filterStateCode}
+              showIndiaOutlines={s.isIndiaContext}
+              onIndiaStateSelect={s.handleIndiaStateBoundaryClick}
               mapLayer={s.adminMapLayerComputed}
               platformMode="admin"
               selectedPlotId={s.selectedSampleFieldId}
               onPlotClick={s.handlePlotClick}
               showValidationPoints={false}
               regionFallback={s.mapRegionFallback}
-              isLoading={s.washimLoading || s.jalnaLoading}
+              isLoading={s.washimLoading || s.jalnaLoading || s.districtOutlineLoading}
             />
           </div>
           <div className="mt-2">

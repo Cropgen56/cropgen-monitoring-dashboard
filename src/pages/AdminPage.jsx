@@ -11,17 +11,17 @@ export default function AdminPage() {
     <div className="space-y-4 p-5 md:p-6">
       <DataQualityBanner mapDataQuality={s.mapDataQuality} />
 
-      {s.washimLoadError && s.district === "Washim" && (
+      {s.isMaharashtraContext && s.washimLoadError && s.district === "Washim" && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
           {s.washimLoadError}
         </div>
       )}
-      {s.jalnaLoadError && s.district === "Jalna" && (
+      {s.isMaharashtraContext && s.jalnaLoadError && s.district === "Jalna" && (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
           {s.jalnaLoadError}
         </div>
       )}
-      {s.jalnaLoading && s.district === "Jalna" && !s.jalnaLoadError && (
+      {s.isMaharashtraContext && s.jalnaLoading && s.district === "Jalna" && !s.jalnaLoadError && (
         <div className="rounded-lg border border-cg-accent/35 bg-cg-accent/10 px-3 py-2 text-xs text-cg-accent">
           Loading Jalna banana plots…
         </div>
@@ -35,6 +35,13 @@ export default function AdminPage() {
         filteredPlots={s.filteredPlots}
         villageBoundary={s.villageBoundary}
         maharashtraOutline={s.maharashtraOutline}
+        maharashtraDistrictsOutline={s.maharashtraDistrictsOutline}
+        showMaharashtraOutline={s.isMaharashtraContext}
+        indiaCountryOutline={s.indiaCountryOutline}
+        indiaStatesOutline={s.indiaStatesOutline}
+        indiaSelectedStateCode={s.filterStateCode}
+        showIndiaOutlines={s.isIndiaContext}
+        onIndiaStateSelect={s.handleIndiaStateBoundaryClick}
         mapLayer={mapLayer}
         mapRegionFallback={s.mapRegionFallback}
         selectedPlotId={s.selectedSampleFieldId}
@@ -42,7 +49,7 @@ export default function AdminPage() {
         selectedProperties={s.selectedProperties}
         selectSampleField={s.selectSampleField}
         loadedFieldCount={s.loadedFieldCount}
-        isLoading={s.washimLoading || s.jalnaLoading}
+        isLoading={s.washimLoading || s.jalnaLoading || s.districtOutlineLoading}
         governanceRollup={s.governanceRollup}
         governanceInsights={s.governanceInsights}
         adminMapLayer={s.adminMapLayer}

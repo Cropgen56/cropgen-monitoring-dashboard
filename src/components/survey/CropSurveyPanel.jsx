@@ -37,6 +37,13 @@ export default function CropSurveyPanel({
   filteredPlots,
   villageBoundary,
   maharashtraOutline,
+  maharashtraDistrictsOutline = null,
+  showMaharashtraOutline = true,
+  indiaCountryOutline,
+  indiaStatesOutline,
+  indiaSelectedStateCode = "",
+  showIndiaOutlines = false,
+  onIndiaStateSelect,
   mapLayer,
   mapRegionFallback,
   selectedPlotId,
@@ -93,6 +100,14 @@ export default function CropSurveyPanel({
           plotData={filteredPlots}
           villageBoundary={villageBoundary}
           maharashtraOutline={maharashtraOutline}
+          maharashtraDistrictsBaseOutline={maharashtraDistrictsOutline}
+          selectedMhDistrict={district}
+          showMaharashtraOutline={showMaharashtraOutline}
+          indiaCountryOutline={indiaCountryOutline}
+          indiaStatesOutline={indiaStatesOutline}
+          indiaSelectedStateCode={indiaSelectedStateCode}
+          showIndiaOutlines={showIndiaOutlines}
+          onIndiaStateSelect={onIndiaStateSelect}
           mapLayer={mapLayer}
           platformMode="survey"
           selectedPlotId={selectedPlotId}

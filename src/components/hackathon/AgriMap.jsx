@@ -99,15 +99,29 @@ function farmingLabel(p) {
   return "Integrated";
 }
 
+function buildMhDistrictBaseTooltipHtml(feature, selectedDistrict) {
+  const p = feature.properties || {};
+  const districtName = esc(p.district || p.name || "District");
+  const active =
+    selectedDistrict &&
+    String(p.district || "").trim() === String(selectedDistrict).trim();
+  return `
+<div style="min-width:200px;max-width:240px;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;border-radius:10px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.35);border:1px solid rgba(148,163,184,.35);background:linear-gradient(180deg,#0f172a 0%,#1e293b 100%);color:#f1f5f9;">
+  <div style="padding:10px 12px;border-bottom:1px solid rgba(51,65,85,.6);display:flex;align-items:center;justify-content:space-between;gap:8px;">
+    <span style="font-weight:650;font-size:13px;letter-spacing:.01em;">${districtName}</span>
+    <span style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 7px;border-radius:999px;background:${active ? "rgba(14,165,233,.25)" : "rgba(100,116,139,.2)"};color:${active ? "#7dd3fc" : "#94a3b8"};">${active ? "Selected" : "District"}</span>
+  </div>
+  <div style="padding:9px 12px 11px;font-size:11px;line-height:1.45;color:#cbd5e1;">
+    <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Maharashtra · India</div>
+    <span style="color:#e2e8f0;">Click to filter</span> this district in Quick filters. Field polygons load for <strong style="color:#fde68a;">Washim</strong> &amp; <strong style="color:#fde68a;">Jalna</strong> in this demo.
+  </div>
+</div>`;
+}
+
 function buildPlotHoverHtml(feature) {
   const p = feature.properties || {};
   if (p.layerType === "district") {
-    const districtName = p.district || p.name || "District";
-    return `
-<div style="min-width:180px;font-family:system-ui,sans-serif;font-size:12px;color:#e2e8f0;">
-  <div style="font-weight:700;color:#fff;margin-bottom:6px;">${esc(districtName)}</div>
-  <div style="color:#cbd5e1;">District boundary view</div>
-</div>`;
+    return buildMhDistrictBaseTooltipHtml(feature, "");
   }
   const title =
     (p.name || "Field").split("—")[0].trim() || "Field";
@@ -171,6 +185,35 @@ function buildPlotHoverHtml(feature) {
       <div style="display:flex;justify-content:space-between;gap:8px;"><span>🌐 Language</span><span style="font-weight:600;color:#0f172a;">${esc(formatFarmerLanguageLabel(p))}</span></div>
     </div>
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:11px;font-weight:600;color:#15803d;">Click to inspect field →</div>
+  </div>
+</div>`;
+}
+
+function buildIndiaStateHoverHtml(feature) {
+  const p = feature.properties || {};
+  const name = esc(p.name || "State / UT");
+  const code = esc(p.state_code || "—");
+  return `
+<div style="min-width:188px;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;border-radius:10px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.2);border:1px solid rgba(203,213,225,.9);background:#fff;">
+  <div style="padding:8px 11px;background:linear-gradient(135deg,#1e3a5f,#0f172a);color:#f8fafc;">
+    <div style="font-weight:650;font-size:12px;letter-spacing:.02em;">${name}</div>
+    <div style="font-size:10px;opacity:.88;margin-top:2px;font-variant-numeric:tabular-nums;">IN-${code}</div>
+  </div>
+  <div style="padding:7px 11px 9px;font-size:10px;color:#64748b;font-weight:500;">Click to set state filter</div>
+</div>`;
+}
+
+function buildDistrictPopupHtml(feature) {
+  const p = feature.properties || {};
+  const name = esc(p.district || p.name || "District");
+  return `
+<div style="min-width:240px;max-width:300px;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;font-size:12px;color:#0f172a;line-height:1.5;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(15,23,42,.12);">
+  <div style="padding:12px 14px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-bottom:1px solid #a7f3d0;">
+    <div style="font-weight:700;font-size:15px;color:#065f46;letter-spacing:-.01em;">${name}</div>
+    <div style="font-size:11px;color:#047857;margin-top:4px;font-weight:500;">Maharashtra · <span style="font-variant-numeric:tabular-nums;">IN-MH</span></div>
+  </div>
+  <div style="padding:12px 14px 14px;background:#fafafa;color:#475569;font-size:11px;">
+    Administrative boundary (LGD / demo). Use <strong style="color:#0f172a;">Quick filters</strong> to align dashboards with this district. Demo plot footprints: <strong>Washim</strong> (soybean), <strong>Jalna</strong> (banana).
   </div>
 </div>`;
 }
@@ -342,13 +385,22 @@ const VILLAGE_OUTLINE_STYLE = {
   opacity: 0.85,
 };
 
-/** Maharashtra state boundary overlay (matches CropGen accent, visible on satellite basemap). */
+/** Maharashtra state boundary — green ring on satellite (drawn above district fills). */
 const MAHARASHTRA_STATE_STYLE = {
-  fillColor: "#79c24a",
-  fillOpacity: 0.16,
-  color: "#79c24a",
-  weight: 3,
-  opacity: 0.95,
+  fillColor: "#22c55e",
+  fillOpacity: 0.07,
+  color: "#16a34a",
+  weight: 3.5,
+  opacity: 0.98,
+};
+
+/** India country boundary (only when not focused on Maharashtra). */
+const INDIA_COUNTRY_STYLE = {
+  fillColor: "#f59e0b",
+  fillOpacity: 0.14,
+  color: "#d97706",
+  weight: 2.2,
+  opacity: 0.92,
 };
 
 function bboxToLeafletBounds(fc) {
@@ -417,6 +469,19 @@ export default function AgriMap({
   villageBoundary,
   /** Optional FeatureCollection — simplified Maharashtra outline from /data/maharashtra-state-outline.geojson */
   maharashtraOutline = null,
+  /** When false, hide state boundary (e.g. non-Maharashtra API selection). */
+  showMaharashtraOutline = true,
+  /** All 36 districts (simplified) — stays visible when a district is selected. */
+  maharashtraDistrictsBaseOutline = null,
+  /** Sidebar / filter district name — highlights matching polygon on the base grid. */
+  selectedMhDistrict = "",
+  /** India (IN) basemap from /data/india-*-outline.geojson */
+  indiaCountryOutline = null,
+  indiaStatesOutline = null,
+  /** ISO 3166-2 state code without IN- prefix, e.g. MH, KA */
+  indiaSelectedStateCode = "",
+  showIndiaOutlines = false,
+  onIndiaStateSelect,
   mapLayer,
   platformMode,
   selectedPlotId,
@@ -435,26 +500,192 @@ export default function AgriMap({
     hoverHtmlCacheRef.current.clear();
   }, [deferredPlotData]);
 
+  const hasMhDistrictGrid = Boolean(maharashtraDistrictsBaseOutline?.features?.length);
+
+  const selectedMhDistrictBounds = useMemo(() => {
+    const d = String(selectedMhDistrict || "").trim();
+    if (!d || !hasMhDistrictGrid) return null;
+    const f = maharashtraDistrictsBaseOutline.features.find(
+      (x) => String(x.properties?.district || "").trim() === d,
+    );
+    if (!f) return null;
+    return bboxToLeafletBounds({ type: "FeatureCollection", features: [f] });
+  }, [selectedMhDistrict, hasMhDistrictGrid, maharashtraDistrictsBaseOutline]);
+
   const isStateOutlineExtent =
-    !deferredPlotData?.features?.length && Boolean(maharashtraOutline?.features?.length);
+    showMaharashtraOutline &&
+    !deferredPlotData?.features?.length &&
+    !hasMhDistrictGrid &&
+    Boolean(maharashtraOutline?.features?.length);
 
   const bounds = useMemo(() => {
     if (deferredPlotData?.features?.length) {
       const fromPlots = bboxToLeafletBounds(deferredPlotData);
       if (fromPlots) return fromPlots;
     }
-    const fromState = bboxToLeafletBounds(maharashtraOutline);
+    if (selectedMhDistrictBounds) {
+      return inflateLatLngBounds(selectedMhDistrictBounds, 0.1);
+    }
+    if (hasMhDistrictGrid) {
+      const fromGrid = bboxToLeafletBounds(maharashtraDistrictsBaseOutline);
+      return fromGrid ? inflateLatLngBounds(fromGrid, 0.06) : null;
+    }
+    const fromState = bboxToLeafletBounds(
+      showMaharashtraOutline ? maharashtraOutline : null,
+    );
     return isStateOutlineExtent ? inflateLatLngBounds(fromState, 0.12) : fromState;
-  }, [deferredPlotData, maharashtraOutline, isStateOutlineExtent]);
+  }, [
+    deferredPlotData,
+    selectedMhDistrictBounds,
+    hasMhDistrictGrid,
+    maharashtraDistrictsBaseOutline,
+    maharashtraOutline,
+    isStateOutlineExtent,
+    showMaharashtraOutline,
+  ]);
+
+  const shouldPreferFitBounds = useMemo(() => {
+    if (!bounds) return false;
+    if (deferredPlotData?.features?.length) return true;
+    if (hasMhDistrictGrid) return true;
+    return false;
+  }, [bounds, deferredPlotData, hasMhDistrictGrid]);
+
+  const hideIndiaOverlaysForMaharashtra = useMemo(() => {
+    const mh = String(indiaSelectedStateCode || "").toUpperCase() === "MH";
+    return mh || hasMhDistrictGrid;
+  }, [indiaSelectedStateCode, hasMhDistrictGrid]);
+
+  const showIndiaCountryPolygons = useMemo(() => {
+    if (!showIndiaOutlines || !indiaCountryOutline?.features?.length) return false;
+    if (hideIndiaOverlaysForMaharashtra) return false;
+    return true;
+  }, [showIndiaOutlines, indiaCountryOutline, hideIndiaOverlaysForMaharashtra]);
+
+  const showIndiaStatePolygons = useMemo(() => {
+    if (!showIndiaOutlines || !indiaStatesOutline?.features?.length) return false;
+    if (hideIndiaOverlaysForMaharashtra) return false;
+    return true;
+  }, [showIndiaOutlines, indiaStatesOutline, hideIndiaOverlaysForMaharashtra]);
+
+  const mhDistrictBaseStyle = useCallback(
+    (feature) => {
+      const d = String(feature?.properties?.district || "").trim();
+      const sel = String(selectedMhDistrict || "").trim();
+      const active = Boolean(sel && d === sel);
+      return {
+        fillColor: active ? "#0284c7" : "#1e293b",
+        fillOpacity: active ? 0.18 : 0.09,
+        color: active ? "#0c4a6e" : "#0f172a",
+        weight: active ? 3 : 2,
+        opacity: active ? 1 : 0.94,
+      };
+    },
+    [selectedMhDistrict],
+  );
+
+  const onEachMhDistrictBase = useCallback(
+    (feature, layer) => {
+      layer.bindTooltip(buildMhDistrictBaseTooltipHtml(feature, selectedMhDistrict), {
+        sticky: true,
+        direction: "auto",
+        className: "agri-mh-district-tip",
+        opacity: 1,
+      });
+      layer.bindPopup(buildDistrictPopupHtml(feature), {
+        className: "agri-district-popup",
+        maxWidth: 320,
+      });
+      layer.on({
+        click: () => onPlotClick?.(feature),
+      });
+    },
+    [onPlotClick, selectedMhDistrict],
+  );
 
   const maharashtraCentroid = useMemo(
     () => featureCollectionCentroidLatLng(maharashtraOutline),
     [maharashtraOutline],
   );
 
+  const indiaCountryCentroid = useMemo(
+    () => featureCollectionCentroidLatLng(indiaCountryOutline),
+    [indiaCountryOutline],
+  );
+
+  const indiaCountryBoundsInflated = useMemo(() => {
+    const b = bboxToLeafletBounds(indiaCountryOutline);
+    return b ? inflateLatLngBounds(b, 0.06) : null;
+  }, [indiaCountryOutline]);
+
+  const indiaSelectedStateFeature = useMemo(() => {
+    if (!indiaStatesOutline?.features?.length || !indiaSelectedStateCode) return null;
+    const want = String(indiaSelectedStateCode).toUpperCase();
+    return (
+      indiaStatesOutline.features.find(
+        (f) => String(f.properties?.state_code || "").toUpperCase() === want,
+      ) || null
+    );
+  }, [indiaStatesOutline, indiaSelectedStateCode]);
+
+  const indiaSelectedStateBounds = useMemo(() => {
+    if (!indiaSelectedStateFeature) return null;
+    const fc = { type: "FeatureCollection", features: [indiaSelectedStateFeature] };
+    const b = bboxToLeafletBounds(fc);
+    return b ? inflateLatLngBounds(b, 0.1) : null;
+  }, [indiaSelectedStateFeature]);
+
+  const indiaSelectedCentroid = useMemo(() => {
+    if (!indiaSelectedStateFeature) return null;
+    try {
+      const c = turf.centroid(indiaSelectedStateFeature);
+      const [lng, lat] = c.geometry.coordinates;
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      return [lat, lng];
+    } catch {
+      return null;
+    }
+  }, [indiaSelectedStateFeature]);
+
+  const mapInitialCenter = useMemo(() => {
+    if (showIndiaOutlines && indiaCountryCentroid) return indiaCountryCentroid;
+    return maharashtraCentroid || [19.7515, 75.7139];
+  }, [showIndiaOutlines, indiaCountryCentroid, maharashtraCentroid]);
+
+  const indiaStateStyle = useCallback(
+    (feature) => {
+      const code = String(feature?.properties?.state_code || "");
+      const sel = String(indiaSelectedStateCode || "").toUpperCase();
+      const active = Boolean(sel && code.toUpperCase() === sel);
+      return {
+        fillColor: active ? "#38bdf8" : "#64748b",
+        fillOpacity: active ? 0.22 : 0.06,
+        color: active ? "#0284c7" : "#475569",
+        weight: active ? 2 : 0.75,
+        opacity: 0.9,
+      };
+    },
+    [indiaSelectedStateCode],
+  );
+
+  const onEachIndiaStateFeature = useCallback(
+    (feature, layer) => {
+      layer.bindTooltip(buildIndiaStateHoverHtml(feature), {
+        sticky: true,
+        direction: "auto",
+        className: "agri-india-state-tip",
+        opacity: 1,
+      });
+      layer.on({
+        click: () => onIndiaStateSelect?.(feature),
+      });
+    },
+    [onIndiaStateSelect],
+  );
+
   const onEachMaharashtraFeature = useCallback((_, layer) => {
     layer.bindTooltip(
-      `<div style="font-size:12px;font-weight:600;color:#0f172a;">Maharashtra</div><div style="font-size:11px;color:#475569;">State boundary (OpenStreetMap)</div>`,
+      `<div style="font-family:ui-sans-serif,system-ui,sans-serif;min-width:160px;border-radius:8px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;box-shadow:0 4px 20px rgba(0,0,0,.12);"><div style="font-weight:650;font-size:12px;color:#0f172a;">Maharashtra</div><div style="font-size:10px;color:#64748b;margin-top:3px;">State boundary</div></div>`,
       { sticky: true, direction: "auto", className: "agri-mh-state-tip", opacity: 1 },
     );
   }, []);
@@ -597,7 +828,13 @@ export default function AgriMap({
         className: "agri-plot-hover",
         interactive: false,
       });
-      if (showSurveyPopup && platformMode === "survey") {
+      const p = feature?.properties || {};
+      if (p.layerType === "district") {
+        layer.bindPopup(buildDistrictPopupHtml(feature), {
+          className: "agri-district-popup",
+          maxWidth: 300,
+        });
+      } else if (showSurveyPopup && platformMode === "survey") {
         layer.bindPopup(buildSurveyPopupHtml(feature), {
           className: "agri-survey-popup",
           maxWidth: 280,
@@ -610,19 +847,52 @@ export default function AgriMap({
   return (
     <div className="relative h-[min(62vh,560px)] w-full overflow-hidden rounded-xl border border-green-900/30 bg-black/20">
       <MapContainer
-        center={maharashtraCentroid || [19.7515, 75.7139]}
-        zoom={6}
+        center={mapInitialCenter}
+        zoom={showIndiaOutlines ? 5 : 6}
         className="h-full w-full"
         zoomControl
-        attributionControl={false}
+        attributionControl
       >
+        {/*
+          Esri World Imagery uses standard Web Mercator XYZ tiles that align with WGS84 GeoJSON.
+          Unofficial Google satellite tile URLs in Leaflet often mis-register vs vector overlays.
+        */}
         <TileLayer
-          url="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-          subdomains={["mt0", "mt1", "mt2", "mt3"]}
-          maxZoom={20}
+          attribution='&copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN, IGP, and the GIS User Community'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={19}
         />
 
-        {maharashtraOutline?.features?.length > 0 && (
+        {showIndiaCountryPolygons && (
+          <GeoJSON
+            key="india-country-outline"
+            data={indiaCountryOutline}
+            style={() => INDIA_COUNTRY_STYLE}
+            renderer={canvasRenderer}
+          />
+        )}
+
+        {showIndiaStatePolygons && (
+          <GeoJSON
+            key={`india-states-${indiaSelectedStateCode || "all"}`}
+            data={indiaStatesOutline}
+            style={indiaStateStyle}
+            onEachFeature={onEachIndiaStateFeature}
+            renderer={canvasRenderer}
+          />
+        )}
+
+        {hasMhDistrictGrid && (
+          <GeoJSON
+            key={`mh-districts-base-${selectedMhDistrict || "all"}`}
+            data={maharashtraDistrictsBaseOutline}
+            style={mhDistrictBaseStyle}
+            onEachFeature={onEachMhDistrictBase}
+            renderer={canvasRenderer}
+          />
+        )}
+
+        {showMaharashtraOutline && maharashtraOutline?.features?.length > 0 && (
           <GeoJSON
             key="maharashtra-state-outline"
             data={maharashtraOutline}
@@ -670,8 +940,27 @@ export default function AgriMap({
           ))}
 
         <RegionFallback bounds={bounds} regionFallback={regionFallback} />
-        {isStateOutlineExtent && bounds && maharashtraCentroid ? (
+        {shouldPreferFitBounds && bounds ? (
+          <FitBounds bounds={bounds} fitOptions={DEFAULT_FIT_OPTIONS} />
+        ) : isStateOutlineExtent && bounds && maharashtraCentroid ? (
           <FitMaharashtraStateView cornerBounds={bounds} centroid={maharashtraCentroid} />
+        ) : showIndiaOutlines &&
+          indiaCountryBoundsInflated &&
+          indiaCountryCentroid &&
+          !indiaSelectedStateCode &&
+          !isStateOutlineExtent ? (
+          <FitMaharashtraStateView
+            cornerBounds={indiaCountryBoundsInflated}
+            centroid={indiaCountryCentroid}
+          />
+        ) : showIndiaOutlines &&
+          indiaSelectedStateBounds &&
+          indiaSelectedCentroid &&
+          !isStateOutlineExtent ? (
+          <FitMaharashtraStateView
+            cornerBounds={indiaSelectedStateBounds}
+            centroid={indiaSelectedCentroid}
+          />
         ) : (
           <FitBounds bounds={bounds} fitOptions={DEFAULT_FIT_OPTIONS} />
         )}

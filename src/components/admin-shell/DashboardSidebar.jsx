@@ -88,58 +88,122 @@ export default function DashboardSidebar() {
 
       <div className="border-t border-white/[0.06] p-3 space-y-2.5 bg-[#0a0d12]">
         <p className="px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">Quick filters</p>
+        <p className="px-1 text-[9px] leading-snug text-gray-600">
+          Locations:{" "}
+          <a
+            href="https://location.cropgenapp.com"
+            target="_blank"
+            rel="noreferrer"
+            className="text-cg-accent/90 underline-offset-2 hover:underline"
+          >
+            CropGen Location API
+          </a>
+        </p>
+        {s.locationApiError && (
+          <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200/95">
+            {s.locationApiError}
+          </p>
+        )}
         <div className="space-y-2">
           <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">State</span>
-            <select className={selectCls} disabled value="Maharashtra">
-              <option>Maharashtra</option>
+            <span className="mb-1 block text-[10px] text-gray-500">Country</span>
+            <select
+              className={selectCls}
+              disabled={s.locationApiLoading && s.locationCountries.length === 0}
+              value={s.filterCountryCode}
+              onChange={(e) => s.setFilterCountryCode(e.target.value)}
+            >
+              {s.locationCountries.length === 0 ? (
+                <option value={s.filterCountryCode}>{s.filterCountryCode || "Loading…"}</option>
+              ) : (
+                s.locationCountries.map((c) => (
+                  <option key={c.iso2} value={c.iso2}>
+                    {c.name} ({c.iso2})
+                  </option>
+                ))
+              )}
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">District</span>
+            <span className="mb-1 block text-[10px] text-gray-500">State / UT</span>
             <select
               className={selectCls}
-              value={s.district}
-              onChange={(e) => s.setDistrict(e.target.value)}
+              disabled={s.locationApiLoading && s.locationStates.length === 0}
+              value={s.filterStateCode}
+              onChange={(e) => s.setFilterStateCode(e.target.value)}
             >
-              <option value="">All districts</option>
-              {s.MAHARASHTRA_DISTRICTS.map((d) => (
-                <option key={d} value={d}>
-                  {d}
+              {s.locationStates.length === 0 ? (
+                <option value={s.filterStateCode}>
+                  {s.locationApiLoading ? "Loading states…" : "No states for this country"}
                 </option>
-              ))}
+              ) : (
+                <>
+                  <option value="">Select state…</option>
+                  {s.locationStates.map((st) => (
+                    <option key={st.state_code} value={st.state_code}>
+                      {st.name} ({st.state_code})
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Taluka</span>
-            <select
-              className={selectCls}
-              value={s.taluka}
-              onChange={(e) => s.setTaluka(e.target.value)}
-            >
-              <option value="">All</option>
-              {s.talukaOptions.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Village</span>
-            <select
-              className={selectCls}
-              value={s.village}
-              onChange={(e) => s.setVillage(e.target.value)}
-            >
-              <option value="">All</option>
-              {s.villageOptions.slice(0, 400).map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </label>
+          {!s.isMaharashtraContext && s.filterStateCode && (
+            <p className="rounded-md border border-white/[0.08] bg-black/20 px-2 py-2 text-[10px] leading-relaxed text-gray-500">
+              Farm polygons, taluka, and village lists in this demo are scoped to{" "}
+              <strong className="text-gray-400">Maharashtra (MH)</strong>. Select Maharashtra to enable the
+              full map.
+            </p>
+          )}
+          {s.isMaharashtraContext && (
+            <>
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-gray-500">District</span>
+                <select
+                  className={selectCls}
+                  value={s.district}
+                  onChange={(e) => s.setDistrict(e.target.value)}
+                >
+                  <option value="">All districts — state view</option>
+                  {s.MAHARASHTRA_DISTRICTS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-gray-500">Taluka</span>
+                <select
+                  className={selectCls}
+                  value={s.taluka}
+                  onChange={(e) => s.setTaluka(e.target.value)}
+                >
+                  <option value="">All</option>
+                  {s.talukaOptions.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[10px] text-gray-500">Village</span>
+                <select
+                  className={selectCls}
+                  value={s.village}
+                  onChange={(e) => s.setVillage(e.target.value)}
+                >
+                  <option value="">All</option>
+                  {s.villageOptions.slice(0, 400).map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
           <label className="block">
             <span className="mb-1 block text-[10px] text-gray-500">Season</span>
             <select className={selectCls} value={s.season} onChange={(e) => s.setSeason(e.target.value)}>

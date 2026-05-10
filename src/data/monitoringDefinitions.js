@@ -55,9 +55,14 @@ export function classifyMapDataMode(fc) {
       hint: null,
     };
   }
+  const allMhDistricts =
+    features.length >= 20 &&
+    features.every((f) => f?.properties?.layerType === "district");
   return {
     mode: MAP_DATA_MODE.DISTRICT_OUTLINE,
-    hint: "District boundary only — plot-level crop intelligence is loaded for Washim (soybean) and Jalna (banana) in this demo. Other districts show administrative outline.",
+    hint: allMhDistricts
+      ? "All 36 Maharashtra districts — click a district to open it."
+      : "District boundary only — plot-level crop intelligence is loaded for Washim (soybean) and Jalna (banana) in this demo. Other districts show administrative outline.",
   };
 }
 

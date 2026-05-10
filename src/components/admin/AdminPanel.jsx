@@ -90,6 +90,13 @@ export default function AdminPanel({
   filteredPlots,
   villageBoundary,
   maharashtraOutline,
+  maharashtraDistrictsOutline = null,
+  showMaharashtraOutline = true,
+  indiaCountryOutline,
+  indiaStatesOutline,
+  indiaSelectedStateCode = "",
+  showIndiaOutlines = false,
+  onIndiaStateSelect,
   mapLayer,
   mapRegionFallback,
   selectedPlotId,
@@ -373,6 +380,14 @@ export default function AdminPanel({
               plotData={filteredPlots}
               villageBoundary={villageBoundary}
               maharashtraOutline={maharashtraOutline}
+              maharashtraDistrictsBaseOutline={maharashtraDistrictsOutline}
+              selectedMhDistrict={district}
+              showMaharashtraOutline={showMaharashtraOutline}
+              indiaCountryOutline={indiaCountryOutline}
+              indiaStatesOutline={indiaStatesOutline}
+              indiaSelectedStateCode={indiaSelectedStateCode}
+              showIndiaOutlines={showIndiaOutlines}
+              onIndiaStateSelect={onIndiaStateSelect}
               mapLayer={mapLayer}
               platformMode="admin"
               selectedPlotId={selectedPlotId}
