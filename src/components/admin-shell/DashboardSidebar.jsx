@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useAgriPlatform } from "../../context/AgriPlatformContext";
+import { LOCATION_API_ORIGIN } from "../../config/endpoints";
 
 const navItem =
   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors";
@@ -55,7 +56,7 @@ export default function DashboardSidebar() {
             <Leaf className="h-6 w-6" strokeWidth={2} />
           </div>
           <div className="min-w-0">
-            <p className="text-[15px] font-bold tracking-tight text-white">CropGen</p>
+            <p className="text-[15px] font-bold tracking-tight text-white">AgriMonitor</p>
             <p className="text-[10px] leading-tight text-gray-500">
               AI Smart Agriculture Administration System
             </p>
@@ -91,12 +92,12 @@ export default function DashboardSidebar() {
         <p className="px-1 text-[9px] leading-snug text-gray-600">
           Locations:{" "}
           <a
-            href="https://location.cropgenapp.com"
+            href={LOCATION_API_ORIGIN}
             target="_blank"
             rel="noreferrer"
             className="text-cg-accent/90 underline-offset-2 hover:underline"
           >
-            CropGen Location API
+            Location API
           </a>
         </p>
         {s.locationApiError && (

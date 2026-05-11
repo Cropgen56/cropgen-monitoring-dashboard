@@ -117,7 +117,7 @@ export default function GovernancePage() {
                 type="button"
                 onClick={() =>
                   downloadCsv(
-                    `cropgen-priority-${s.district || "export"}.csv`,
+                    `agrimonitor-priority-${s.district || "export"}.csv`,
                     priorityList.map((x) => ({
                       id: x.id,
                       farmer: x.name,
@@ -167,7 +167,7 @@ export default function GovernancePage() {
               type="button"
               onClick={() =>
                 downloadCsv(
-                  `cropgen-district-rollup-${s.district || "all"}.csv`,
+                  `agrimonitor-district-rollup-${s.district || "all"}.csv`,
                   buildDistrictGovernanceRows(rollup, s.district),
                 )
               }
@@ -179,7 +179,7 @@ export default function GovernancePage() {
               type="button"
               onClick={() =>
                 downloadCsv(
-                  `cropgen-farmers-${s.district || "all"}.csv`,
+                  `agrimonitor-farmers-${s.district || "all"}.csv`,
                   buildFarmerExportRows(s.filteredPlots),
                 )
               }

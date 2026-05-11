@@ -1,8 +1,8 @@
 /** Client-only demo credentials (prototype — not for production). */
-export const DEMO_ADMIN_EMAIL = "admin@cropgenapp.com";
-export const DEMO_ADMIN_PASSWORD = "cropgen@2026";
+export const DEMO_ADMIN_EMAIL = "admin@agrimonitor.app";
+export const DEMO_ADMIN_PASSWORD = "agrimonitor@2026";
 
-const STORAGE_KEY = "cropgen_demo_session_v1";
+const STORAGE_KEY = "agrimonitor_demo_session_v1";
 
 export function readStoredSession() {
   try {

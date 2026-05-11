@@ -4,9 +4,106 @@
  */
 
 import * as turf from "@turf/turf";
-import { SOYBEAN_CROP_IMAGE_URL } from "./cropAssets";
+import { SOYBEAN_CROP_IMAGE_URL, BANANA_CROP_IMAGE_URL } from "./cropAssets";
 import { getTalukas } from "./maharashtraHierarchy";
 import { normalizeDistrictKey } from "./monitoringDefinitions";
+
+/** Two-letter cluster prefix per district — matches Washim `WH`, Jalna `JN`, etc. */
+export const DISTRICT_CLUSTER_PREFIX = {
+  Ahmednagar: "AG",
+  Akola: "AK",
+  Amravati: "AM",
+  Aurangabad: "AU",
+  Beed: "BD",
+  Bhandara: "BH",
+  Buldhana: "BU",
+  Chandrapur: "CD",
+  Dharashiv: "DS",
+  Dhule: "DH",
+  Gadchiroli: "GC",
+  Gondia: "GO",
+  Hingoli: "HI",
+  Jalgaon: "JG",
+  Jalna: "JN",
+  Kolhapur: "KP",
+  Latur: "LT",
+  "Mumbai City": "MC",
+  "Mumbai Suburban": "MS",
+  Nagpur: "NG",
+  Nanded: "ND",
+  Nandurbar: "NB",
+  Nashik: "NK",
+  Palghar: "PL",
+  Parbhani: "PR",
+  Pune: "PU",
+  Raigad: "RG",
+  Ratnagiri: "RT",
+  Sangli: "SG",
+  Satara: "ST",
+  Sindhudurg: "SD",
+  Solapur: "SL",
+  Thane: "TH",
+  Wardha: "WD",
+  Washim: "WH",
+  Yavatmal: "YV",
+};
+
+function districtClusterPrefix(districtName) {
+  const d = String(districtName || "").trim();
+  if (DISTRICT_CLUSTER_PREFIX[d]) return DISTRICT_CLUSTER_PREFIX[d];
+  const k = normalizeDistrictKey(districtName);
+  return k.slice(0, 2).toUpperCase().padEnd(2, "X");
+}
+
+function cropClusterSuffix(crop) {
+  const c = String(crop || "Soybean").trim();
+  const map = {
+    Soybean: "SY",
+    Banana: "BN",
+    Rice: "RI",
+    Cotton: "CT",
+    Sugarcane: "SG",
+    Chili: "CH",
+    Wheat: "WT",
+    Maize: "MZ",
+    Tobacco: "TB",
+  };
+  if (map[c]) return map[c];
+  const alnum = c.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return (alnum.slice(0, 2) || "CR").padEnd(2, "X");
+}
+
+/**
+ * Merge bundled `src/data/<DISTRICT>.geojson` parts into one polygon for parcel clipping.
+ */
+export function combineDistrictGeometriesToOneFeature(fc) {
+  if (!fc?.features?.length) return null;
+  const polys = fc.features.filter(
+    (f) => f?.geometry && ["Polygon", "MultiPolygon"].includes(f.geometry.type),
+  );
+  if (!polys.length) return null;
+  if (polys.length === 1) return polys[0];
+  try {
+    const u = turf.union(turf.featureCollection(polys));
+    if (u?.geometry) return u;
+  } catch {
+    /* use largest */
+  }
+  let largest = polys[0];
+  let maxA = 0;
+  for (const f of polys) {
+    try {
+      const a = turf.area(f);
+      if (a > maxA) {
+        maxA = a;
+        largest = f;
+      }
+    } catch {
+      /* */
+    }
+  }
+  return largest;
+}
 
 const NDVI_15 = [
   { date: "Day 1", "2025": 0.4, "2024": 0.46 },
@@ -81,11 +178,6 @@ function districtCodeKey(districtName) {
   return k.slice(0, 3).padEnd(3, "x");
 }
 
-function clusterPrefix(districtName) {
-  const k = normalizeDistrictKey(districtName);
-  return k.slice(0, 2).toUpperCase();
-}
-
 function soil(healthPct, status, cropAge, stdY, aiY, n, p, k) {
   return {
     healthPercentage: healthPct,
@@ -139,34 +231,118 @@ function waterSeriesFor(index) {
 }
 
 /**
- * @param {string[]} talukaPool from `getTalukas(district)`; falls back to district name
+ * Full parcel card props (Washim / Jalna style) for any MH district demo grid.
+ * @param {string[]} talukaPool from `getTalukas(district)`
+ * @param {string} [crop] sidebar crop — Soybean, Banana, etc.
  */
-export function buildDistrictSoybeanProps(index, areaHa, districtName, talukaPool) {
+export function buildDistrictPlotProps(index, areaHa, districtName, talukaPool, crop = "Soybean") {
   const district = String(districtName || "").trim();
+  const cropLabel = String(crop || "Soybean").trim() || "Soybean";
   const pool =
     Array.isArray(talukaPool) && talukaPool.length > 0 ? talukaPool : [district];
   const taluka = pool[index % pool.length] || district;
   const hi = healthFromIndex(index);
   const dc = districtCodeKey(district);
-  const cp = clusterPrefix(district);
+  const prefix = districtClusterPrefix(district);
+  const cs = cropClusterSuffix(cropLabel);
   const village = `${taluka} (Rural)`;
+  const districtNum = (dc.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 90) + 10;
+  const farmerId = `FR-MH-${districtNum}${String(1000 + (index % 9000)).padStart(4, "0")}`;
+  const mobile = `+91 9876${districtNum} ${String(30000 + (index % 60000)).padStart(5, "0")}`;
+  const farmerName = `${FIRST_NAMES[index % FIRST_NAMES.length]} ${LAST_NAMES[(index >> 2) % LAST_NAMES.length]}`;
+
+  if (cropLabel === "Banana") {
+    const stdY = 180 + hash01(index + 1 + dc.charCodeAt(0)) * 90;
+    const aiY = stdY * (0.94 + hash01(index + 2) * 0.12);
+    const drought =
+      hi.ndvi < 0.5 ? "high" : hi.ndvi < 0.62 ? "moderate" : "low";
+    return {
+      _id: `MH-${prefix}-BN-${String(index + 1).padStart(5, "0")}`,
+      name: `Banana · ${taluka} · plot ${index + 1}`,
+      district,
+      taluka,
+      village,
+      clusterId: `${prefix}-BN-${String(1 + (index % 8)).padStart(2, "0")}`,
+      area_ha: areaHa.toFixed(2),
+      cropType: "Banana",
+      cropImage: BANANA_CROP_IMAGE_URL,
+      cropHealth: hi.label,
+      cropHealthPercent: hi.pct,
+      sowingDate: "2026-02-08",
+      standardYield: Number(stdY.toFixed(1)),
+      aiYield: Number(aiY.toFixed(1)),
+      avgNDVI: Number(hi.ndvi.toFixed(2)),
+      evi: Number((hi.ndvi * 0.86).toFixed(2)),
+      savi: Number((hi.ndvi * 0.91).toFixed(2)),
+      vhi: Number((48 + hi.pct * 0.32).toFixed(1)),
+      droughtClass: drought,
+      surveyNdviHealth: Number(hi.ndvi.toFixed(2)),
+      predictedYieldTonPerAcre: Number((stdY * 0.065).toFixed(2)),
+      farmerId,
+      farmerName,
+      mobile,
+      preferredLanguage: "mr",
+      aadhaarMasked: `XXXX XXXX ${String(2000 + (index % 9000)).padStart(4, "0")}`,
+      gatNo: `${(index % 500) + 1} / ${(index % 4) + 1}`,
+      surveyNo: `SN-${prefix}-20${18 + (index % 8)}-${3000 + index}`,
+      irrigationType:
+        index % 4 === 0
+          ? "Drip (micro)"
+          : index % 3 === 0
+            ? "Flood + field channel"
+            : "Borewell + drip",
+      cropHistory: {
+        2026: "Banana",
+        2025: index % 3 === 0 ? "Soybean" : "Banana",
+        2024: index % 4 === 0 ? "Cotton" : "Banana",
+      },
+      cropLoan: {
+        availed: index % 2 === 0,
+        amountINR: index % 2 === 0 ? 120000 + (index % 80) * 1000 : 0,
+      },
+      insurance: { scheme: "PMFBY", season: "Kharif 2026", claimed: index % 19 === 0 },
+      schemesMahadbt:
+        index % 5 === 0 ? [{ name: "Micro irrigation", subsidyINR: 42000 }] : [],
+      aiRiskTags:
+        drought === "high"
+          ? ["high_risk_zone"]
+          : drought === "moderate"
+            ? ["moderate_et_deficit"]
+            : [],
+      soilHealth: soil(
+        hi.pct,
+        hi.label === "Very Good"
+          ? "Excellent"
+          : hi.label === "Good"
+            ? "Good"
+            : hi.label === "Decent"
+              ? "Normal"
+              : "Needs Attention",
+        90 + (index % 35),
+        stdY,
+        aiY,
+        32 + (index % 16),
+        16 + (index % 12),
+        180 + (index % 90),
+      ),
+      _syntheticDemo: true,
+    };
+  }
+
   const stdY = 9.5 + hash01(index + 1 + dc.charCodeAt(0)) * 5.5;
   const aiY = stdY * (0.9 + hash01(index + 2) * 0.2);
   const drought =
     hi.ndvi < 0.48 ? "high" : hi.ndvi < 0.58 ? "moderate" : "low";
-  const districtNum = (dc.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 90) + 10;
-  const farmerId = `FR-MH-${districtNum}${String(1000 + (index % 9000)).padStart(4, "0")}`;
-  const mobile = `+91 9876${districtNum} ${String(30000 + (index % 60000)).padStart(5, "0")}`;
 
   return {
-    _id: `MH-${dc}-SY-${String(index + 1).padStart(5, "0")}`,
-    name: `Soybean · ${taluka} · plot ${index + 1}`,
+    _id: `MH-${prefix}-${cs}-${String(index + 1).padStart(5, "0")}`,
+    name: `${cropLabel} · ${taluka} · plot ${index + 1}`,
     district,
     taluka,
     village,
-    clusterId: `${cp}-SY-${String(1 + (index % 8)).padStart(2, "0")}`,
+    clusterId: `${prefix}-${cs}-${String(1 + (index % 8)).padStart(2, "0")}`,
     area_ha: areaHa.toFixed(2),
-    cropType: "Soybean",
+    cropType: cropLabel,
     cropImage: SOYBEAN_CROP_IMAGE_URL,
     cropHealth: hi.label,
     cropHealthPercent: hi.pct,
@@ -181,11 +357,12 @@ export function buildDistrictSoybeanProps(index, areaHa, districtName, talukaPoo
     surveyNdviHealth: Number(hi.ndvi.toFixed(2)),
     predictedYieldTonPerAcre: Number((stdY * 0.04).toFixed(2)),
     farmerId,
-    farmerName: `${FIRST_NAMES[index % FIRST_NAMES.length]} ${LAST_NAMES[(index >> 2) % LAST_NAMES.length]}`,
+    farmerName,
     mobile,
+    preferredLanguage: "mr",
     aadhaarMasked: `XXXX XXXX ${String(2000 + (index % 9000)).padStart(4, "0")}`,
     gatNo: `${(index % 380) + 1} / ${(index % 3) + 1}`,
-    surveyNo: `SN-${cp}-20${14 + (index % 10)}-${3000 + index}`,
+    surveyNo: `SN-${prefix}-20${14 + (index % 10)}-${3000 + index}`,
     irrigationType:
       index % 5 === 0
         ? "Borewell + drip (limited)"
@@ -193,9 +370,9 @@ export function buildDistrictSoybeanProps(index, areaHa, districtName, talukaPoo
           ? "Canal (minor)"
           : "Rainfed",
     cropHistory: {
-      2026: "Soybean",
-      2025: index % 3 === 0 ? "Cotton" : "Soybean",
-      2024: index % 4 === 0 ? "Tur" : "Soybean",
+      2026: cropLabel,
+      2025: index % 3 === 0 ? "Cotton" : cropLabel,
+      2024: index % 4 === 0 ? "Tur" : cropLabel,
     },
     cropLoan: {
       availed: index % 2 === 0,
@@ -234,6 +411,11 @@ export function buildDistrictSoybeanProps(index, areaHa, districtName, talukaPoo
     ),
     _syntheticDemo: true,
   };
+}
+
+/** @deprecated Use `buildDistrictPlotProps(..., "Soybean")` */
+export function buildDistrictSoybeanProps(index, areaHa, districtName, talukaPool) {
+  return buildDistrictPlotProps(index, areaHa, districtName, talukaPool, "Soybean");
 }
 
 /**
@@ -299,9 +481,15 @@ export function generateSoybeanPlotsInDistrict(districtFeature, count = 48) {
   return { type: "FeatureCollection", features };
 }
 
-export function enrichDistrictSyntheticFeature(feature, index, districtName, talukaPool) {
+export function enrichDistrictSyntheticFeature(
+  feature,
+  index,
+  districtName,
+  talukaPool,
+  crop = "Soybean",
+) {
   const areaHa = Math.max(0.08, areaHaForFeature(feature));
-  const base = buildDistrictSoybeanProps(index, areaHa, districtName, talukaPool);
+  const base = buildDistrictPlotProps(index, areaHa, districtName, talukaPool, crop);
   return {
     ...feature,
     properties: {
@@ -313,12 +501,17 @@ export function enrichDistrictSyntheticFeature(feature, index, districtName, tal
   };
 }
 
-export function enrichDistrictSyntheticFeatureCollection(fc, districtName, talukaPool) {
+export function enrichDistrictSyntheticFeatureCollection(
+  fc,
+  districtName,
+  talukaPool,
+  crop = "Soybean",
+) {
   if (!fc?.features) return fc;
   return {
     ...fc,
     features: fc.features.map((f, i) =>
-      enrichDistrictSyntheticFeature(f, i, districtName, talukaPool),
+      enrichDistrictSyntheticFeature(f, i, districtName, talukaPool, crop),
     ),
   };
 }

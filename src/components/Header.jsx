@@ -16,7 +16,7 @@ export default function Header() {
             <div className="flex items-center shrink-0 gap-3 min-w-0">
               <img
                 src={img}
-                alt="CropGen"
+                alt="AgriMonitor"
                 className="h-6 sm:h-8 md:h-10 lg:h-12 w-auto"
               />
               <p className="hidden md:block max-w-xl text-[10px] sm:text-xs text-gray-400 leading-snug border-l border-white/10 pl-3">

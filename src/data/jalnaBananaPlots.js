@@ -162,6 +162,7 @@ export function buildJalnaBananaProps(index, areaHa) {
     predictedYieldTonPerAcre: Number((stdY * 0.065).toFixed(2)),
     farmerId,
     farmerName: `${FIRST_NAMES[index % FIRST_NAMES.length]} ${LAST_NAMES[(index >> 2) % LAST_NAMES.length]}`,
+    preferredLanguage: "mr",
     mobile,
     aadhaarMasked: `XXXX XXXX ${String(2000 + (index % 9000)).padStart(4, "0")}`,
     gatNo: `${(index % 500) + 1} / ${(index % 4) + 1}`,

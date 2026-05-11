@@ -194,3 +194,25 @@ body {
     min-height: -webkit-fill-available;
   }
 }
+
+/* Map overlay loader — one GPU-friendly animation (no JS progress loop) */
+@keyframes agri-loader-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.agri-loader-indeterminate {
+  animation: agri-loader-slide 1.35s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agri-loader-indeterminate {
+    animation: none;
+    transform: none;
+    width: 66%;
+  }
+}

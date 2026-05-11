@@ -67,7 +67,7 @@ export default function DashboardTopBar() {
   const nav = useNavigate();
   const { user, logout } = useAuth();
   const meta = ROUTE_META[pathname] || {
-    title: "CROPGEN",
+    title: "AGRIMONITOR",
     subtitle: "Agriculture administration",
   };
 

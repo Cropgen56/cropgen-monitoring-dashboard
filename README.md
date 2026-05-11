@@ -1,4 +1,4 @@
-# CropGen Monitoring Dashboard
+# AgriMonitor Monitoring Dashboard
 
 Hackathon-ready **field + satellite monitoring** workspace for Maharashtra: survey intelligence (maps and charts), government admin console (KPIs, schemes, alerts), and AI cluster insights — built with **React 19**, **Vite 7**, **Tailwind CSS 4**, **Leaflet / react-leaflet**, and **Recharts**.
 
@@ -12,6 +12,8 @@ npm run dev
 ```
 
 Open the URL shown in the terminal (default `http://localhost:5173`).
+
+**API hosts (optional white-label):** Set `VITE_API_BASE_URL` and `VITE_LOCATION_API_ORIGIN` in a `.env` file to point at your backends. Defaults match the original demo servers.
 
 **Production build:**
 

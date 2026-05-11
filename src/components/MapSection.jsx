@@ -523,9 +523,10 @@ export default function MapSection({
           attributionControl={false}
         >
           <TileLayer
-            attribution='&copy; Esri &mdash; Maxar, Earthstar'
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-            maxZoom={19}
+            attribution="© Google Maps"
+            url="https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+            subdomains={["mt0", "mt1", "mt2", "mt3"]}
+            maxZoom={20}
           />
 
           {uploadedData && uploadedData.geojson && (

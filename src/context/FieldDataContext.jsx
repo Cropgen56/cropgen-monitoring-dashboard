@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useState, useMemo } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
 
 const FieldDataContext = createContext(null);
 
@@ -321,22 +327,51 @@ export function FieldDataProvider({ children }) {
     return Array.from(set);
   }, [sampleFields]);
 
-  const value = {
-    sampleFields,
-    fieldData,
-    availableCrops,
-    selectedCrop,
-    selectedSampleFieldId,
-    selectedField: selectedSnapshotField,
-    governmentPrograms,
+  const setSelectedCropStable = useCallback((crop) => {
+    setSelectedCrop(crop || "");
+  }, []);
 
-    loadSampleFields: setSampleFields,
-    setSelectedCrop: (crop) => setSelectedCrop(crop || ""),
-    selectSampleField: (id) => setSelectedSampleFieldId(id || null),
+  const selectSampleFieldStable = useCallback((id) => {
+    setSelectedSampleFieldId(id || null);
+  }, []);
 
-    selectField: (snapshot) => setSelectedSnapshotField(snapshot || null),
-    clearField: () => setSelectedSnapshotField(null),
-  };
+  const selectFieldStable = useCallback((snapshot) => {
+    setSelectedSnapshotField(snapshot || null);
+  }, []);
+
+  const clearFieldStable = useCallback(() => {
+    setSelectedSnapshotField(null);
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      sampleFields,
+      fieldData,
+      availableCrops,
+      selectedCrop,
+      selectedSampleFieldId,
+      selectedField: selectedSnapshotField,
+      governmentPrograms,
+      loadSampleFields: setSampleFields,
+      setSelectedCrop: setSelectedCropStable,
+      selectSampleField: selectSampleFieldStable,
+      selectField: selectFieldStable,
+      clearField: clearFieldStable,
+    }),
+    [
+      sampleFields,
+      fieldData,
+      availableCrops,
+      selectedCrop,
+      selectedSampleFieldId,
+      selectedSnapshotField,
+      governmentPrograms,
+      setSelectedCropStable,
+      selectSampleFieldStable,
+      selectFieldStable,
+      clearFieldStable,
+    ],
+  );
 
   return (
     <FieldDataContext.Provider value={value}>

@@ -17,6 +17,7 @@ import {
   enrichDistrictSyntheticFeatureCollection,
   getSyntheticDistrictPlotsExtentOutline,
   talukaPoolForDistrict,
+  combineDistrictGeometriesToOneFeature,
 } from "../data/maharashtraDistrictSyntheticPlots";
 import { getClusterAnalytics } from "../data/agriStateData";
 import {
@@ -37,7 +38,7 @@ import {
   aggregateDistrictGovernance,
   generateGovernanceInsights,
 } from "../data/governanceEngine";
-import { fetchCountries, fetchStates } from "../api/cropgenLocationApi";
+import { fetchCountries, fetchStates } from "../api/locationApi";
 
 /** Lazy loaders only — eager loading all district GeoJSON OOMs the tab (Chromium error 5). */
 const DISTRICT_GEOJSON_LOADERS = import.meta.glob("../data/*.geojson", {
@@ -61,20 +62,39 @@ function findDistrictGeoLoaderPath(districtName) {
   });
 }
 
-function decorateDistrictFeatures(fc, districtName) {
+/**
+ * Washim/Jalna-style titles: `Soybean · Taluka · plot N` — here `Crop · District · boundary`.
+ */
+function decorateDistrictFeatures(fc, districtName, { crop, season, year } = {}) {
+  const cropLabel = String(crop || "Soybean").trim() || "Soybean";
+  const seasonLabel = String(season || "Kharif").trim() || "Kharif";
+  const yearLabel = year ?? 2026;
   if (!fc?.features?.length) return { type: "FeatureCollection", features: [] };
+  const multi = fc.features.length > 1;
+  const prefix = normalizeDistrictKey(districtName).slice(0, 3).toUpperCase() || "MH";
   return {
     type: "FeatureCollection",
-    features: fc.features.map((f, idx) => ({
-      ...f,
-      properties: {
-        ...(f.properties || {}),
-        _id: `district-${districtName.toLowerCase().replace(/\s+/g, "-")}-${idx}`,
-        district: districtName,
-        name: `${districtName} District`,
-        layerType: "district",
-      },
-    })),
+    features: fc.features.map((f, idx) => {
+      const tract = multi ? ` · tract ${idx + 1}` : "";
+      const name = `${cropLabel} · ${districtName} · district boundary${multi ? ` ${idx + 1}` : ""}`;
+      const shortLabel = `${cropLabel} · ${districtName}${tract}`;
+      return {
+        ...f,
+        properties: {
+          ...(f.properties || {}),
+          _id: `district-file-${districtName.toLowerCase().replace(/\s+/g, "-")}-${idx}`,
+          district: districtName,
+          name: shortLabel,
+          mapTitle: name,
+          cropType: cropLabel,
+          season: seasonLabel,
+          year: yearLabel,
+          clusterId: `${prefix}-BD-${String(idx + 1).padStart(2, "0")}`,
+          layerType: "district",
+          boundarySource: "district-geojson-file",
+        },
+      };
+    }),
   };
 }
 
@@ -111,7 +131,7 @@ export function useAgriPlatformState() {
     fieldData,
   } = useFieldData();
 
-  /** CropGen Location API — ISO2 country (default India). */
+  /** Location API — ISO2 country (default India). */
   const [filterCountryCode, setFilterCountryCode] = useState("IN");
   /** State/UT code from API (MH = Maharashtra). */
   const [filterStateCode, setFilterStateCode] = useState("MH");
@@ -151,8 +171,8 @@ export function useAgriPlatformState() {
   const jalnaFetchRef = useRef({ inFlight: false, failed: false });
   const districtGeoCacheRef = useRef(new Map());
 
-  /** One district boundary FC at a time (lazy-loaded KML-derived outlines). */
-  const [lazyDistrictOutline, setLazyDistrictOutline] = useState(null);
+  /** Raw geometry from `src/data/<DISTRICT>.geojson` (labels applied in useMemo with crop/season). */
+  const [lazyDistrictOutlineRaw, setLazyDistrictOutlineRaw] = useState(null);
   const [districtOutlineLoading, setDistrictOutlineLoading] = useState(false);
   /** Simplified 36-district outline (public/data/maharashtra-districts-outline.geojson). */
   const [maharashtraDistrictsOutline, setMaharashtraDistrictsOutline] = useState(null);
@@ -312,48 +332,61 @@ export function useAgriPlatformState() {
   }, [basePlots, washimSoybeanPlots, jalnaBananaPlots]);
 
   /**
-   * When a district has no real GeoJSON in `bundledRealPlotsRaw`, generate demo soybean
-   * parcels inside that district polygon (from maharashtra-districts-outline).
+   * When a district has no real plot GeoJSON in `bundledRealPlotsRaw`, generate demo parcels
+   * (Washim-style card data) clipped to high-res `src/data/<DISTRICT>.geojson` when available,
+   * else to the simplified district polygon from `maharashtra-districts-outline`.
    */
   const districtSyntheticPlots = useMemo(() => {
     if (filterStateCode !== "MH" || !district) return null;
     if (district === "Washim" || district === "Jalna") return null;
-    if (!maharashtraDistrictsOutline?.features?.length) return null;
     const realInDistrict = filterPlotsFeatureCollectionByDistrict(
       bundledRealPlotsRaw,
       district,
     );
     if (realInDistrict.features.length > 0) return null;
 
-    const feat = maharashtraDistrictsOutline.features.find(
-      (f) => String(f.properties?.district || "").trim() === String(district).trim(),
-    );
-    if (!feat) return null;
-    const raw = generateSoybeanPlotsInDistrict(feat, 48);
+    const fromBundledFile =
+      lazyDistrictOutlineRaw?.features?.length > 0
+        ? combineDistrictGeometriesToOneFeature(lazyDistrictOutlineRaw)
+        : null;
+    const outlineFeat =
+      fromBundledFile ||
+      maharashtraDistrictsOutline?.features?.find(
+        (f) => String(f.properties?.district || "").trim() === String(district).trim(),
+      );
+    if (!outlineFeat?.geometry) return null;
+
+    const raw = generateSoybeanPlotsInDistrict(outlineFeat, 48);
     if (!raw.features?.length) return null;
     return enrichDistrictSyntheticFeatureCollection(
       raw,
       district,
       talukaPoolForDistrict(district),
+      crop,
     );
   }, [
     filterStateCode,
     district,
     maharashtraDistrictsOutline,
     bundledRealPlotsRaw,
+    lazyDistrictOutlineRaw,
+    crop,
   ]);
 
+  /**
+   * Global plot pool only (demo + Washim + Jalna). Per-district synthetic parcels are
+   * merged in `filteredPlotsRaw` only — otherwise every district change re-enriches
+   * governance over thousands of Washim/Jalna polygons (main thread freeze).
+   */
   const fullPlotsRaw = useMemo(() => {
     const chunks = [basePlots.features];
     if (washimSoybeanPlots?.features?.length)
       chunks.push(washimSoybeanPlots.features);
     if (jalnaBananaPlots?.features?.length)
       chunks.push(jalnaBananaPlots.features);
-    if (districtSyntheticPlots?.features?.length)
-      chunks.push(districtSyntheticPlots.features);
     if (chunks.length === 1) return basePlots;
     return { type: "FeatureCollection", features: chunks.flat() };
-  }, [basePlots, washimSoybeanPlots, jalnaBananaPlots, districtSyntheticPlots]);
+  }, [basePlots, washimSoybeanPlots, jalnaBananaPlots]);
 
   const fullPlots = useMemo(
     () =>
@@ -477,25 +510,19 @@ export function useAgriPlatformState() {
 
   useEffect(() => {
     if (filterStateCode !== "MH" || !district) {
-      setLazyDistrictOutline(null);
+      setLazyDistrictOutlineRaw(null);
       setDistrictOutlineLoading(false);
       return;
     }
     if (district === "Washim" || district === "Jalna") {
-      setLazyDistrictOutline(null);
-      setDistrictOutlineLoading(false);
-      return;
-    }
-
-    if (maharashtraDistrictsOutline?.features?.length) {
-      setLazyDistrictOutline(null);
+      setLazyDistrictOutlineRaw(null);
       setDistrictOutlineLoading(false);
       return;
     }
 
     const cached = districtGeoCacheRef.current.get(district);
     if (cached) {
-      setLazyDistrictOutline(cached);
+      setLazyDistrictOutlineRaw(cached);
       setDistrictOutlineLoading(false);
       return;
     }
@@ -503,14 +530,14 @@ export function useAgriPlatformState() {
     const path = findDistrictGeoLoaderPath(district);
     const loader = path ? DISTRICT_GEOJSON_LOADERS[path] : null;
     if (!loader) {
-      setLazyDistrictOutline({ type: "FeatureCollection", features: [] });
+      setLazyDistrictOutlineRaw({ type: "FeatureCollection", features: [] });
       setDistrictOutlineLoading(false);
       return;
     }
 
     let cancelled = false;
     setDistrictOutlineLoading(true);
-    setLazyDistrictOutline(null);
+    setLazyDistrictOutlineRaw(null);
 
     loader()
       .then((mod) => {
@@ -521,12 +548,12 @@ export function useAgriPlatformState() {
         } catch {
           parsed = null;
         }
-        const fc = decorateDistrictFeatures(toFeatureCollection(parsed), district);
+        const fc = toFeatureCollection(parsed) || { type: "FeatureCollection", features: [] };
         districtGeoCacheRef.current.set(district, fc);
-        if (!cancelled) setLazyDistrictOutline(fc);
+        if (!cancelled) setLazyDistrictOutlineRaw(fc);
       })
       .catch(() => {
-        if (!cancelled) setLazyDistrictOutline({ type: "FeatureCollection", features: [] });
+        if (!cancelled) setLazyDistrictOutlineRaw({ type: "FeatureCollection", features: [] });
       })
       .finally(() => {
         if (!cancelled) setDistrictOutlineLoading(false);
@@ -535,13 +562,17 @@ export function useAgriPlatformState() {
     return () => {
       cancelled = true;
     };
-  }, [
-    filterStateCode,
-    district,
-    washimSoybeanPlots,
-    jalnaBananaPlots,
-    maharashtraDistrictsOutline,
-  ]);
+  }, [filterStateCode, district]);
+
+  const lazyDistrictOutlineLabeled = useMemo(() => {
+    if (!lazyDistrictOutlineRaw?.features?.length || !district) return null;
+    if (district === "Washim" || district === "Jalna") return null;
+    return decorateDistrictFeatures(lazyDistrictOutlineRaw, district, {
+      crop,
+      season,
+      year,
+    });
+  }, [lazyDistrictOutlineRaw, district, crop, season, year]);
 
   const filteredPlotsRaw = useMemo(() => {
     if (filterStateCode !== "MH") {
@@ -550,29 +581,46 @@ export function useAgriPlatformState() {
     if (!district) {
       return fullPlotsRaw;
     }
+
+    let plotsPart = { type: "FeatureCollection", features: [] };
+
     if (district === "Washim" && washimSoybeanPlots?.features?.length) {
-      return washimSoybeanPlots;
+      plotsPart = washimSoybeanPlots;
+    } else if (district === "Jalna" && jalnaBananaPlots?.features?.length) {
+      plotsPart = jalnaBananaPlots;
+    } else {
+      const inDistrict = filterPlotsFeatureCollectionByDistrict(fullPlotsRaw, district);
+      if (inDistrict.features.length > 0) {
+        plotsPart = inDistrict;
+      } else if (districtSyntheticPlots?.features?.length) {
+        plotsPart = districtSyntheticPlots;
+      }
     }
-    if (district === "Jalna" && jalnaBananaPlots?.features?.length) {
-      return jalnaBananaPlots;
+
+    /** High-res boundary only when there are no parcel features (same UI as Washim = field polygons only). */
+    const detailBoundary =
+      district !== "Washim" &&
+      district !== "Jalna" &&
+      plotsPart.features.length === 0 &&
+      lazyDistrictOutlineLabeled?.features?.length
+        ? lazyDistrictOutlineLabeled
+        : null;
+
+    if (detailBoundary) {
+      return detailBoundary;
     }
-    const inDistrict = filterPlotsFeatureCollectionByDistrict(fullPlotsRaw, district);
-    if (inDistrict.features.length > 0) {
-      return inDistrict;
-    }
-    if (!maharashtraDistrictsOutline?.features?.length && lazyDistrictOutline?.features?.length) {
-      return lazyDistrictOutline;
+    if (plotsPart.features.length > 0) {
+      return plotsPart;
     }
     return { type: "FeatureCollection", features: [] };
   }, [
     filterStateCode,
     district,
     fullPlotsRaw,
-    lazyDistrictOutline,
+    lazyDistrictOutlineLabeled,
     washimSoybeanPlots,
     jalnaBananaPlots,
     districtSyntheticPlots,
-    maharashtraDistrictsOutline,
   ]);
 
   const filteredPlots = useMemo(
@@ -644,8 +692,14 @@ export function useAgriPlatformState() {
       const v = f.properties?.village;
       if (v) set.add(v);
     });
+    if (districtSyntheticPlots?.features?.length) {
+      districtSyntheticPlots.features.forEach((f) => {
+        const v = f.properties?.village;
+        if (v) set.add(v);
+      });
+    }
     return Array.from(set);
-  }, [district, fullPlots]);
+  }, [district, fullPlots, districtSyntheticPlots]);
 
   const villageOptions = useMemo(
     () =>
@@ -701,10 +755,11 @@ export function useAgriPlatformState() {
 
   const selectedFeature = useMemo(() => {
     if (!selectedSampleFieldId) return null;
-    return fullPlots.features.find(
-      (f) => f.properties?._id === selectedSampleFieldId,
+    return (
+      fullPlots.features.find((f) => f.properties?._id === selectedSampleFieldId) ??
+      filteredPlots.features.find((f) => f.properties?._id === selectedSampleFieldId)
     );
-  }, [fullPlots, selectedSampleFieldId]);
+  }, [fullPlots, filteredPlots, selectedSampleFieldId]);
 
   const villageBoundary = useMemo(() => {
     if (!showVillageBoundary) return null;
@@ -746,14 +801,15 @@ export function useAgriPlatformState() {
     [clusterRows],
   );
 
-  const historicalYield = [
-    { y: "2023", current: 11.2, prior: 10.4 },
-    { y: "2024", current: 12.1, prior: 11.2 },
-    { y: "2025", current: 12.8, prior: 12.1 },
-    { y: "2026", current: 13.4, prior: 12.8 },
-  ];
-
-  const p = selectedFeature?.properties;
+  const historicalYield = useMemo(
+    () => [
+      { y: "2023", current: 11.2, prior: 10.4 },
+      { y: "2024", current: 12.1, prior: 11.2 },
+      { y: "2025", current: 12.8, prior: 12.1 },
+      { y: "2026", current: 13.4, prior: 12.8 },
+    ],
+    [],
+  );
 
   const handlePlotClick = useCallback(
     (feature) => {
@@ -780,74 +836,139 @@ export function useAgriPlatformState() {
     return filteredPlots.features.length;
   }, [filterStateCode, district, filteredPlots, fullPlots]);
 
-  const isMaharashtraContext = filterStateCode === "MH";
-  const isIndiaContext = filterCountryCode === "IN";
+  const districtOutlineLoadingCombined =
+    districtOutlineLoading || mhAllDistrictsOutlineLoading;
 
-  return {
-    filterCountryCode,
-    setFilterCountryCode,
-    filterStateCode,
-    setFilterStateCode,
-    locationCountries,
-    locationStates,
-    locationApiError,
-    locationApiLoading,
-    isMaharashtraContext,
-    isIndiaContext,
-    indiaCountryOutline,
-    indiaStatesOutline,
-    handleIndiaStateBoundaryClick,
-    district,
-    setDistrict,
-    taluka,
-    setTaluka,
-    village,
-    setVillage,
-    crop,
-    setCrop,
-    season,
-    setSeason,
-    year,
-    setYear,
-    adminMapLayer,
-    setAdminMapLayer,
-    surveyMapLayer,
-    setSurveyMapLayer,
-    showVillageBoundary,
-    setShowVillageBoundary,
-    showValidation,
-    setShowValidation,
-    villageFilter,
-    setVillageFilter,
-    washimLoadError,
-    washimLoading,
-    jalnaLoadError,
-    jalnaLoading,
-    filteredPlots,
-    fullPlots,
-    mapRegionFallback,
-    talukaOptions,
-    villageOptions,
-    districtVillageCount,
-    villagesByDistrictCatalog,
-    selectedSampleFieldId,
-    selectedFeature,
-    selectedProperties: p,
-    villageBoundary,
-    adminMapLayerComputed,
-    clusterRows,
-    yieldCompareData,
-    historicalYield,
-    handlePlotClick,
-    selectSampleField,
-    fieldData,
-    loadedFieldCount,
-    districtOutlineLoading: districtOutlineLoading || mhAllDistrictsOutlineLoading,
-    MAHARASHTRA_DISTRICTS,
-    mapDataQuality,
-    governanceRollup,
-    governanceInsights,
-    maharashtraOutline,
-    maharashtraDistrictsOutline,
-  };
+  return useMemo(
+    () => ({
+      filterCountryCode,
+      setFilterCountryCode,
+      filterStateCode,
+      setFilterStateCode,
+      locationCountries,
+      locationStates,
+      locationApiError,
+      locationApiLoading,
+      isMaharashtraContext: filterStateCode === "MH",
+      isIndiaContext: filterCountryCode === "IN",
+      indiaCountryOutline,
+      indiaStatesOutline,
+      handleIndiaStateBoundaryClick,
+      district,
+      setDistrict,
+      taluka,
+      setTaluka,
+      village,
+      setVillage,
+      crop,
+      setCrop,
+      season,
+      setSeason,
+      year,
+      setYear,
+      adminMapLayer,
+      setAdminMapLayer,
+      surveyMapLayer,
+      setSurveyMapLayer,
+      showVillageBoundary,
+      setShowVillageBoundary,
+      showValidation,
+      setShowValidation,
+      villageFilter,
+      setVillageFilter,
+      washimLoadError,
+      washimLoading,
+      jalnaLoadError,
+      jalnaLoading,
+      filteredPlots,
+      fullPlots,
+      mapRegionFallback,
+      talukaOptions,
+      villageOptions,
+      districtVillageCount,
+      villagesByDistrictCatalog,
+      selectedSampleFieldId,
+      selectedFeature,
+      selectedProperties: selectedFeature?.properties,
+      villageBoundary,
+      adminMapLayerComputed,
+      clusterRows,
+      yieldCompareData,
+      historicalYield,
+      handlePlotClick,
+      selectSampleField,
+      fieldData,
+      loadedFieldCount,
+      districtOutlineLoading: districtOutlineLoadingCombined,
+      MAHARASHTRA_DISTRICTS,
+      mapDataQuality,
+      governanceRollup,
+      governanceInsights,
+      maharashtraOutline,
+      maharashtraDistrictsOutline,
+    }),
+    [
+      filterCountryCode,
+      setFilterCountryCode,
+      filterStateCode,
+      setFilterStateCode,
+      locationCountries,
+      locationStates,
+      locationApiError,
+      locationApiLoading,
+      indiaCountryOutline,
+      indiaStatesOutline,
+      handleIndiaStateBoundaryClick,
+      district,
+      setDistrict,
+      taluka,
+      setTaluka,
+      village,
+      setVillage,
+      crop,
+      setCrop,
+      season,
+      setSeason,
+      year,
+      setYear,
+      adminMapLayer,
+      setAdminMapLayer,
+      surveyMapLayer,
+      setSurveyMapLayer,
+      showVillageBoundary,
+      setShowVillageBoundary,
+      showValidation,
+      setShowValidation,
+      villageFilter,
+      setVillageFilter,
+      washimLoadError,
+      washimLoading,
+      jalnaLoadError,
+      jalnaLoading,
+      filteredPlots,
+      fullPlots,
+      mapRegionFallback,
+      talukaOptions,
+      villageOptions,
+      districtVillageCount,
+      villagesByDistrictCatalog,
+      selectedSampleFieldId,
+      selectedFeature,
+      villageBoundary,
+      adminMapLayerComputed,
+      clusterRows,
+      yieldCompareData,
+      historicalYield,
+      handlePlotClick,
+      selectSampleField,
+      fieldData,
+      loadedFieldCount,
+      districtOutlineLoadingCombined,
+      mapDataQuality,
+      governanceRollup,
+      governanceInsights,
+      maharashtraOutline,
+      maharashtraDistrictsOutline,
+    ],
+  );
 }

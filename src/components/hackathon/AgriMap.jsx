@@ -1,10 +1,11 @@
 import React, {
   useCallback,
-  useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  startTransition,
   memo,
 } from "react";
 import {
@@ -14,6 +15,7 @@ import {
   CircleMarker,
   Popup,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
 import * as turf from "@turf/turf";
@@ -118,8 +120,36 @@ function buildMhDistrictBaseTooltipHtml(feature, selectedDistrict) {
 </div>`;
 }
 
+function buildDistrictFileBoundaryHoverHtml(feature) {
+  const p = feature.properties || {};
+  const title = esc((p.mapTitle || p.name || "District boundary").split("—")[0].trim());
+  const subtitle = `${esc(p.cropType || "Crop")} · ${esc(p.clusterId || "—")}`;
+  const { areaHa, center } = geomMetrics(feature);
+  const haStr = areaHa > 0 ? areaHa.toFixed(2) : "—";
+  const season = esc(p.season || "—");
+  const year = esc(p.year != null ? String(p.year) : "—");
+  return `
+<div style="width:100%;max-width:280px;border-radius:12px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.45);font-family:system-ui,-apple-system,sans-serif;font-size:12px;color:#1e293b;background:#fff;">
+  <div style="background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;padding:10px 12px;">
+    <div style="font-weight:700;font-size:13px;letter-spacing:.02em;">${title}</div>
+    <div style="opacity:.92;font-size:11px;margin-top:2px;">${subtitle}</div>
+  </div>
+  <div style="padding:10px 12px 12px;background:#fafafa;">
+    <div style="display:grid;gap:6px;font-size:11px;color:#334155;">
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>📐 Area (GIS)</span><span style="font-weight:600;color:#0f172a;">${esc(haStr)} ha</span></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>📆 Season</span><span style="font-weight:600;color:#0f172a;">${season} ${year}</span></div>
+      <div style="display:flex;justify-content:space-between;gap:8px;"><span>◎ Center</span><span style="font-weight:600;color:#0f172a;font-family:ui-monospace,monospace;font-size:10px;">${esc(center)}</span></div>
+    </div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:11px;font-weight:600;color:#15803d;">District boundary (GeoJSON file)</div>
+  </div>
+</div>`;
+}
+
 function buildPlotHoverHtml(feature) {
   const p = feature.properties || {};
+  if (p.layerType === "district" && p.boundarySource === "district-geojson-file") {
+    return buildDistrictFileBoundaryHoverHtml(feature);
+  }
   if (p.layerType === "district") {
     return buildMhDistrictBaseTooltipHtml(feature, "");
   }
@@ -206,6 +236,26 @@ function buildIndiaStateHoverHtml(feature) {
 function buildDistrictPopupHtml(feature) {
   const p = feature.properties || {};
   const name = esc(p.district || p.name || "District");
+  if (p.boundarySource === "district-geojson-file") {
+    const title = esc(p.mapTitle || p.name || name);
+    const crop = esc(p.cropType || "—");
+    const cl = esc(p.clusterId || "—");
+    const { areaHa } = geomMetrics(feature);
+    const haStr = areaHa > 0 ? areaHa.toFixed(2) : "—";
+    const season = esc(p.season || "—");
+    const year = esc(p.year != null ? String(p.year) : "—");
+    return `
+<div style="min-width:240px;max-width:300px;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;font-size:12px;color:#0f172a;line-height:1.5;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(15,23,42,.12);">
+  <div style="padding:12px 14px;background:linear-gradient(135deg,#fee2e2,#fecaca);border-bottom:1px solid #f87171;">
+    <div style="font-weight:700;font-size:15px;color:#991b1b;letter-spacing:-.01em;">${title}</div>
+    <div style="font-size:11px;color:#b91c1c;margin-top:4px;font-weight:500;">${crop} · ${cl} · Maharashtra · IN-MH</div>
+  </div>
+  <div style="padding:12px 14px 14px;background:#fafafa;color:#475569;font-size:11px;">
+    <div style="margin-bottom:8px;">High-resolution boundary from bundled <strong style="color:#0f172a;">GeoJSON</strong> (same labeling pattern as Washim/Jalna field parcels).</div>
+    <div style="font-variant-numeric:tabular-nums;">Area (GIS): <strong>${esc(haStr)} ha</strong> · ${season} ${year}</div>
+  </div>
+</div>`;
+  }
   return `
 <div style="min-width:240px;max-width:300px;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;font-size:12px;color:#0f172a;line-height:1.5;border-radius:12px;overflow:hidden;box-shadow:0 12px 40px rgba(15,23,42,.12);">
   <div style="padding:12px 14px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-bottom:1px solid #a7f3d0;">
@@ -259,6 +309,285 @@ function buildSurveyPopupHtml(feature) {
 }
 
 const DEFAULT_FIT_OPTIONS = { padding: [40, 40], maxZoom: 15, animate: true };
+
+/** Below this count, render all features (viewport cull + simplify disabled). */
+const DENSE_PLOT_THRESHOLD = 180;
+/** Pad view bbox by this fraction (each side) so panning doesn’t pop polygons in/out. */
+const VIEWPORT_PAD_RATIO = 0.12;
+
+/** Pan deltas smaller than this (deg) skip React state → fewer heavy recomputes. */
+const BBOX_EPS = 1.2e-4;
+
+function bboxNearlyEqual(a, b) {
+  if (a == null && b == null) return true;
+  if (a == null || b == null || a.length !== 4 || b.length !== 4) return false;
+  for (let i = 0; i < 4; i++) {
+    if (Math.abs(a[i] - b[i]) > BBOX_EPS) return false;
+  }
+  return true;
+}
+
+function featureBBoxIntersects(
+  feature,
+  west,
+  south,
+  east,
+  north,
+) {
+  try {
+    const [minX, minY, maxX, maxY] = turf.bbox(feature);
+    return !(maxX < west || minX > east || maxY < south || minY > north);
+  } catch {
+    return true;
+  }
+}
+
+function ringBBoxIntersects(bb, west, south, east, north) {
+  if (!bb) return true;
+  const [minX, minY, maxX, maxY] = bb;
+  return !(maxX < west || minX > east || maxY < south || minY > north);
+}
+
+function padLngLatBBox(bbox, ratio) {
+  if (!bbox) return null;
+  const [west, south, east, north] = bbox;
+  const dLng = (east - west) * ratio;
+  const dLat = (north - south) * ratio;
+  return [west - dLng, south - dLat, east + dLng, north + dLat];
+}
+
+/**
+ * Low zoom + many parcels: simplify rings so Canvas/SVG paths stay cheap.
+ * highQuality:false is noticeably faster on thousand-polygon loads.
+ */
+function simplifyPlotsForZoom(fc, zoom) {
+  if (!fc?.features?.length || zoom == null) return fc;
+  const n = fc.features.length;
+  if (n < 320) return fc;
+  let tol;
+  if (zoom <= 9) tol = 0.00028;
+  else if (zoom <= 10) tol = 0.00016;
+  else if (zoom <= 11) tol = 0.00009;
+  else if (zoom <= 12) tol = 0.000045;
+  else return fc;
+  return {
+    type: "FeatureCollection",
+    features: fc.features.map((f) => {
+      try {
+        const s = turf.simplify(f, { tolerance: tol, highQuality: false });
+        if (!s?.geometry) return f;
+        return s;
+      } catch {
+        return f;
+      }
+    }),
+  };
+}
+
+/** Precompute ring bboxes once per simplified layer (avoids turf.bbox on every pan). */
+function buildFeatureBBoxIndex(fc) {
+  if (!fc?.features?.length) return null;
+  const out = new Array(fc.features.length);
+  for (let i = 0; i < fc.features.length; i++) {
+    try {
+      out[i] = turf.bbox(fc.features[i]);
+    } catch {
+      out[i] = null;
+    }
+  }
+  return out;
+}
+
+function filterPlotsToViewport(fc, bbox, ringBBoxes = null) {
+  if (!fc?.features?.length || !bbox) return fc;
+  const padded = padLngLatBBox(bbox, VIEWPORT_PAD_RATIO);
+  if (!padded) return fc;
+  const [west, south, east, north] = padded;
+  const filtered = [];
+  for (let i = 0; i < fc.features.length; i++) {
+    const f = fc.features[i];
+    const bb = ringBBoxes ? ringBBoxes[i] : null;
+    const ok = bb
+      ? ringBBoxIntersects(bb, west, south, east, north)
+      : featureBBoxIntersects(f, west, south, east, north);
+    if (ok) filtered.push(f);
+  }
+  if (filtered.length === 0) return fc;
+  if (filtered.length === fc.features.length) return fc;
+  return { type: "FeatureCollection", features: filtered };
+}
+
+function useDebouncedMapView(debounceMs) {
+  const map = useMap();
+  const timerRef = useRef(null);
+  const [view, setView] = useState(() => ({
+    bbox: null,
+    zoom: typeof map?.getZoom === "function" ? map.getZoom() : 12,
+  }));
+
+  const flush = useCallback(() => {
+    try {
+      const b = map.getBounds();
+      const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+      const zoom = map.getZoom();
+      startTransition(() => {
+        setView((prev) => {
+          if (prev.zoom === zoom && bboxNearlyEqual(prev.bbox, bbox)) return prev;
+          return { bbox, zoom };
+        });
+      });
+    } catch {
+      /* ignore */
+    }
+  }, [map]);
+
+  const schedule = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      flush();
+    }, debounceMs);
+  }, [debounceMs, flush]);
+
+  useMapEvents({
+    moveend: schedule,
+    zoomend: schedule,
+  });
+
+  useEffect(() => {
+    flush();
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [map, flush]);
+
+  return view;
+}
+
+/**
+ * react-leaflet <GeoJSON> does not apply `data` updates (only `style`).
+ * A single Leaflet GeoJSON layer is created on map.whenReady, then clearLayers + addData
+ * keeps vectors in sync. Refs for style/onEach avoid stale closures. Default SVG renderer
+ * avoids canvas/renderer races with react-leaflet’s map instance.
+ */
+function ImperativePlotGeoJsonLayer({ plotData, styleFor, onEachFeature }) {
+  const map = useMap();
+  const layerRef = useRef(null);
+  const styleRef = useRef(styleFor);
+  const onEachRef = useRef(onEachFeature);
+  const plotDataRef = useRef(plotData);
+  const lastSyncedPlotDataRef = useRef(undefined);
+
+  useLayoutEffect(() => {
+    styleRef.current = styleFor;
+    onEachRef.current = onEachFeature;
+    plotDataRef.current = plotData;
+  }, [styleFor, onEachFeature, plotData]);
+
+  const syncData = useCallback((lyr, data) => {
+    if (!lyr) return;
+    try {
+      lyr.clearLayers();
+      if (data?.features?.length) {
+        lyr.addData(data);
+        lyr.setStyle((feature) => styleRef.current(feature));
+      }
+    } catch {
+      /* ignore corrupt geojson edge cases */
+    }
+  }, []);
+
+  useEffect(() => {
+    let layer = null;
+    let cancelled = false;
+
+    const attach = () => {
+      if (cancelled) return;
+      layer = L.geoJSON([], {
+        style: (feature) => styleRef.current(feature),
+        onEachFeature: (feature, lyr) => onEachRef.current(feature, lyr),
+        interactive: true,
+      });
+      layer.addTo(map);
+      if (typeof layer.bringToFront === "function") {
+        layer.bringToFront();
+      }
+      layerRef.current = layer;
+      syncData(layer, plotDataRef.current);
+      lastSyncedPlotDataRef.current = plotDataRef.current;
+    };
+
+    map.whenReady(attach);
+
+    return () => {
+      cancelled = true;
+      if (layer) {
+        try {
+          map.removeLayer(layer);
+        } catch {
+          /* ignore */
+        }
+      }
+      layerRef.current = null;
+      lastSyncedPlotDataRef.current = undefined;
+    };
+  }, [map, syncData]);
+
+  useEffect(() => {
+    const lyr = layerRef.current;
+    if (!lyr) return;
+    if (plotData === lastSyncedPlotDataRef.current) return;
+    lastSyncedPlotDataRef.current = plotData;
+    syncData(lyr, plotData);
+  }, [plotData, syncData]);
+
+  useEffect(() => {
+    const lyr = layerRef.current;
+    if (!lyr?.getLayers?.()?.length) return;
+    try {
+      lyr.setStyle((feature) => styleRef.current(feature));
+    } catch {
+      /* ignore */
+    }
+  }, [styleFor]);
+
+  return null;
+}
+
+const ViewportPlotGeoJson = memo(function ViewportPlotGeoJson({
+  plotData,
+  styleFor,
+  onEachFeature,
+}) {
+  const { bbox, zoom } = useDebouncedMapView(280);
+  const zoomKey = zoom != null ? Math.round(zoom) : null;
+  const isDense = Boolean(plotData?.features?.length >= DENSE_PLOT_THRESHOLD);
+
+  const simplifiedPlots = useMemo(() => {
+    if (!plotData?.features?.length) return plotData;
+    if (!isDense) return plotData;
+    return simplifyPlotsForZoom(plotData, zoomKey);
+  }, [plotData, zoomKey, isDense]);
+
+  const ringBBoxes = useMemo(() => {
+    if (!isDense || !simplifiedPlots?.features?.length) return null;
+    return buildFeatureBBoxIndex(simplifiedPlots);
+  }, [isDense, simplifiedPlots]);
+
+  const displayData = useMemo(() => {
+    if (!simplifiedPlots?.features?.length) return simplifiedPlots;
+    if (!isDense) return simplifiedPlots;
+    return filterPlotsToViewport(simplifiedPlots, bbox, ringBBoxes);
+  }, [simplifiedPlots, bbox, isDense, ringBBoxes]);
+
+  return (
+    <ImperativePlotGeoJsonLayer
+      plotData={displayData}
+      styleFor={styleFor}
+      onEachFeature={onEachFeature}
+    />
+  );
+});
 
 const FitBounds = ({ bounds, fitOptions = DEFAULT_FIT_OPTIONS }) => {
   const map = useMap();
@@ -445,25 +774,6 @@ function featureCollectionCentroidLatLng(fc) {
   }
 }
 
-const PlotGeoJsonLayer = memo(function PlotGeoJsonLayer({
-  plotData,
-  styleFor,
-  onEachFeature,
-  layerKey,
-  renderer,
-}) {
-  if (!plotData?.features?.length) return null;
-  return (
-    <GeoJSON
-      key={layerKey}
-      data={plotData}
-      style={styleFor}
-      onEachFeature={onEachFeature}
-      renderer={renderer}
-    />
-  );
-});
-
 export default function AgriMap({
   plotData,
   villageBoundary,
@@ -492,13 +802,12 @@ export default function AgriMap({
   /** When true (survey mode), bind click popup with crop / NDVI / yield / risk */
   showSurveyPopup = false,
 }) {
-  const deferredPlotData = useDeferredValue(plotData);
   const hoverHtmlCacheRef = useRef(new Map());
   const canvasRenderer = useMemo(() => L.canvas({ padding: 0.5 }), []);
 
   useEffect(() => {
     hoverHtmlCacheRef.current.clear();
-  }, [deferredPlotData]);
+  }, [plotData]);
 
   const hasMhDistrictGrid = Boolean(maharashtraDistrictsBaseOutline?.features?.length);
 
@@ -514,13 +823,13 @@ export default function AgriMap({
 
   const isStateOutlineExtent =
     showMaharashtraOutline &&
-    !deferredPlotData?.features?.length &&
+    !plotData?.features?.length &&
     !hasMhDistrictGrid &&
     Boolean(maharashtraOutline?.features?.length);
 
   const bounds = useMemo(() => {
-    if (deferredPlotData?.features?.length) {
-      const fromPlots = bboxToLeafletBounds(deferredPlotData);
+    if (plotData?.features?.length) {
+      const fromPlots = bboxToLeafletBounds(plotData);
       if (fromPlots) return fromPlots;
     }
     if (selectedMhDistrictBounds) {
@@ -535,7 +844,7 @@ export default function AgriMap({
     );
     return isStateOutlineExtent ? inflateLatLngBounds(fromState, 0.12) : fromState;
   }, [
-    deferredPlotData,
+    plotData,
     selectedMhDistrictBounds,
     hasMhDistrictGrid,
     maharashtraDistrictsBaseOutline,
@@ -546,10 +855,10 @@ export default function AgriMap({
 
   const shouldPreferFitBounds = useMemo(() => {
     if (!bounds) return false;
-    if (deferredPlotData?.features?.length) return true;
+    if (plotData?.features?.length) return true;
     if (hasMhDistrictGrid) return true;
     return false;
-  }, [bounds, deferredPlotData, hasMhDistrictGrid]);
+  }, [bounds, plotData, hasMhDistrictGrid]);
 
   const hideIndiaOverlaysForMaharashtra = useMemo(() => {
     const mh = String(indiaSelectedStateCode || "").toUpperCase() === "MH";
@@ -767,14 +1076,7 @@ export default function AgriMap({
     [mapLayer, platformMode, selectedPlotId],
   );
 
-  const geoJsonKey = useMemo(
-    () =>
-      `${mapLayer}-${platformMode}-${showSurveyPopup}-${deferredPlotData?.features?.length ?? 0}`,
-    [mapLayer, platformMode, showSurveyPopup, deferredPlotData?.features?.length],
-  );
-
-  const isDeferredRendering = deferredPlotData !== plotData;
-  const shouldShowLoader = isLoading || isDeferredRendering;
+  const shouldShowLoader = isLoading;
   const [loaderVisible, setLoaderVisible] = useState(false);
   const loaderStartRef = useRef(0);
   const loaderHideTimerRef = useRef(null);
@@ -794,7 +1096,7 @@ export default function AgriMap({
 
     if (!loaderVisible) return;
     const elapsed = Date.now() - loaderStartRef.current;
-    const remaining = Math.max(0, 2000 - elapsed);
+    const remaining = Math.max(0, 120 - elapsed);
     loaderHideTimerRef.current = setTimeout(() => {
       setLoaderVisible(false);
       loaderHideTimerRef.current = null;
@@ -814,26 +1116,39 @@ export default function AgriMap({
         feature?.properties?._id ||
         feature?.id ||
         `${feature?.properties?.name || "plot"}-${feature?.geometry?.type || "geom"}`;
-      const cached = hoverHtmlCacheRef.current.get(featureId);
-      const hoverHtml = cached || buildPlotHoverHtml(feature);
-      if (!cached) hoverHtmlCacheRef.current.set(featureId, hoverHtml);
 
       layer.on({
         click: () => onPlotClick?.(feature),
       });
-      layer.bindTooltip(hoverHtml, {
-        sticky: true,
-        opacity: 1,
-        direction: "auto",
-        className: "agri-plot-hover",
-        interactive: false,
+      layer.bindTooltip(
+        '<span style="font-size:11px;color:#64748b;">Field details…</span>',
+        {
+          sticky: true,
+          opacity: 1,
+          direction: "auto",
+          className: "agri-plot-hover",
+          interactive: false,
+        },
+      );
+      let hoverBuilt = false;
+      layer.on("tooltipopen", () => {
+        if (hoverBuilt) return;
+        hoverBuilt = true;
+        const cached = hoverHtmlCacheRef.current.get(featureId);
+        const hoverHtml = cached || buildPlotHoverHtml(feature);
+        if (!cached) hoverHtmlCacheRef.current.set(featureId, hoverHtml);
+        const tip = layer.getTooltip?.();
+        if (tip?.setContent) tip.setContent(hoverHtml);
       });
       const p = feature?.properties || {};
       if (p.layerType === "district") {
-        layer.bindPopup(buildDistrictPopupHtml(feature), {
-          className: "agri-district-popup",
-          maxWidth: 300,
-        });
+        /** File-backed district outline: one UI only — rich card on hover (tooltip), no click popup (avoids double card on tap). */
+        if (p.boundarySource !== "district-geojson-file") {
+          layer.bindPopup(buildDistrictPopupHtml(feature), {
+            className: "agri-district-popup",
+            maxWidth: 300,
+          });
+        }
       } else if (showSurveyPopup && platformMode === "survey") {
         layer.bindPopup(buildSurveyPopupHtml(feature), {
           className: "agri-survey-popup",
@@ -852,15 +1167,14 @@ export default function AgriMap({
         className="h-full w-full"
         zoomControl
         attributionControl
+        preferCanvas
       >
-        {/*
-          Esri World Imagery uses standard Web Mercator XYZ tiles that align with WGS84 GeoJSON.
-          Unofficial Google satellite tile URLs in Leaflet often mis-register vs vector overlays.
-        */}
+        {/* Google hybrid: satellite + labels (cities, roads). Ensure use complies with Google Maps ToS. */}
         <TileLayer
-          attribution='&copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, USDA, USGS, AeroGRID, IGN, IGP, and the GIS User Community'
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          maxZoom={19}
+          attribution="© Google Maps"
+          url="https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+          subdomains={["mt0", "mt1", "mt2", "mt3"]}
+          maxZoom={20}
         />
 
         {showIndiaCountryPolygons && (
@@ -906,12 +1220,10 @@ export default function AgriMap({
           <GeoJSON data={villageBoundary} style={VILLAGE_OUTLINE_STYLE} renderer={canvasRenderer} />
         )}
 
-        <PlotGeoJsonLayer
-          plotData={deferredPlotData}
+        <ViewportPlotGeoJson
+          plotData={plotData}
           styleFor={styleFor}
           onEachFeature={onEachPlotFeature}
-          layerKey={geoJsonKey}
-          renderer={canvasRenderer}
         />
 
         {showValidationPoints &&

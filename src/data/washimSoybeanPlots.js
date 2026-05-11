@@ -155,6 +155,7 @@ export function buildWashimSoybeanProps(index, areaHa) {
     predictedYieldTonPerAcre: Number((stdY * 0.04).toFixed(2)),
     farmerId,
     farmerName: `${FIRST_NAMES[index % FIRST_NAMES.length]} ${LAST_NAMES[(index >> 2) % LAST_NAMES.length]}`,
+    preferredLanguage: "mr",
     mobile,
     aadhaarMasked: `XXXX XXXX ${String(1000 + (index % 9000)).padStart(4, "0")}`,
     gatNo: `${(index % 400) + 1} / ${(index % 3) + 1}`,

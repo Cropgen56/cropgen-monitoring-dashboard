@@ -1,10 +1,9 @@
-import axios from 'axios';
-
-const BASE_URL = 'https://server.cropgenapp.com/v1/api';
+import axios from "axios";
+import { API_BASE_URL } from "../config/endpoints.js";
 
 // Create axios instance with base config
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },

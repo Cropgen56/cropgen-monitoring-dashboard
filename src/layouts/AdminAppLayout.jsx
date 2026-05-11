@@ -4,7 +4,7 @@ import DashboardSidebar from "../components/admin-shell/DashboardSidebar";
 import DashboardTopBar from "../components/admin-shell/DashboardTopBar";
 
 /**
- * CropGen admin shell: fixed sidebar + top bar + scrollable main (matches design mock).
+ * Admin shell: fixed sidebar + top bar + scrollable main (matches design mock).
  */
 export default function AdminAppLayout() {
   return (

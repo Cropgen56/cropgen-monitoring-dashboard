@@ -40,7 +40,7 @@ export default function LoginPage() {
               <Leaf className="h-7 w-7" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">CropGen</h1>
+              <h1 className="text-xl font-bold text-white">AgriMonitor</h1>
               <p className="text-[11px] text-gray-500">AI Smart Agriculture Administration System</p>
             </div>
           </div>
@@ -65,7 +65,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-lg border border-white/[0.1] bg-[#111820] py-3 pl-10 pr-4 text-sm text-white outline-none focus:border-cg-accent/50"
-                  placeholder="admin@cropgenapp.com"
+                  placeholder="admin@agrimonitor.app"
                   autoComplete="username"
                   required
                 />
