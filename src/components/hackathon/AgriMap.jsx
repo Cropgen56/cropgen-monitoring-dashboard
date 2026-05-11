@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useDeferredValue,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -147,7 +148,11 @@ function buildDistrictFileBoundaryHoverHtml(feature) {
 
 function buildPlotHoverHtml(feature) {
   const p = feature.properties || {};
-  if (p.layerType === "district" && p.boundarySource === "district-geojson-file") {
+  if (
+    p.layerType === "district" &&
+    (p.boundarySource === "district-geojson-file" ||
+      p.boundarySource === "district-simplified-outline")
+  ) {
     return buildDistrictFileBoundaryHoverHtml(feature);
   }
   if (p.layerType === "district") {
@@ -236,7 +241,10 @@ function buildIndiaStateHoverHtml(feature) {
 function buildDistrictPopupHtml(feature) {
   const p = feature.properties || {};
   const name = esc(p.district || p.name || "District");
-  if (p.boundarySource === "district-geojson-file") {
+  if (
+    p.boundarySource === "district-geojson-file" ||
+    p.boundarySource === "district-simplified-outline"
+  ) {
     const title = esc(p.mapTitle || p.name || name);
     const crop = esc(p.cropType || "—");
     const cl = esc(p.clusterId || "—");
@@ -802,6 +810,8 @@ export default function AgriMap({
   /** When true (survey mode), bind click popup with crop / NDVI / yield / risk */
   showSurveyPopup = false,
 }) {
+  /** Keeps UI responsive while React recomputes heavy GeoJSON (feature/hackethon-changes pattern). */
+  const deferredPlotData = useDeferredValue(plotData);
   const hoverHtmlCacheRef = useRef(new Map());
   const canvasRenderer = useMemo(() => L.canvas({ padding: 0.5 }), []);
 
@@ -823,13 +833,13 @@ export default function AgriMap({
 
   const isStateOutlineExtent =
     showMaharashtraOutline &&
-    !plotData?.features?.length &&
+    !deferredPlotData?.features?.length &&
     !hasMhDistrictGrid &&
     Boolean(maharashtraOutline?.features?.length);
 
   const bounds = useMemo(() => {
-    if (plotData?.features?.length) {
-      const fromPlots = bboxToLeafletBounds(plotData);
+    if (deferredPlotData?.features?.length) {
+      const fromPlots = bboxToLeafletBounds(deferredPlotData);
       if (fromPlots) return fromPlots;
     }
     if (selectedMhDistrictBounds) {
@@ -844,7 +854,7 @@ export default function AgriMap({
     );
     return isStateOutlineExtent ? inflateLatLngBounds(fromState, 0.12) : fromState;
   }, [
-    plotData,
+    deferredPlotData,
     selectedMhDistrictBounds,
     hasMhDistrictGrid,
     maharashtraDistrictsBaseOutline,
@@ -855,10 +865,10 @@ export default function AgriMap({
 
   const shouldPreferFitBounds = useMemo(() => {
     if (!bounds) return false;
-    if (plotData?.features?.length) return true;
+    if (deferredPlotData?.features?.length) return true;
     if (hasMhDistrictGrid) return true;
     return false;
-  }, [bounds, plotData, hasMhDistrictGrid]);
+  }, [bounds, deferredPlotData, hasMhDistrictGrid]);
 
   const hideIndiaOverlaysForMaharashtra = useMemo(() => {
     const mh = String(indiaSelectedStateCode || "").toUpperCase() === "MH";
@@ -1002,7 +1012,11 @@ export default function AgriMap({
   const styleFor = useCallback(
     (feature) => {
       const p = feature?.properties || {};
-      const selected = p._id === selectedPlotId;
+      const sid = p._id ?? p.id;
+      const selected =
+        selectedPlotId != null &&
+        sid != null &&
+        String(sid) === String(selectedPlotId);
       const weight = selected ? 3 : 1.2;
       if (p.layerType === "district") {
         return {
@@ -1076,7 +1090,9 @@ export default function AgriMap({
     [mapLayer, platformMode, selectedPlotId],
   );
 
-  const shouldShowLoader = isLoading;
+  const isPlotsDeferred =
+    deferredPlotData !== plotData && Boolean(plotData?.features?.length);
+  const shouldShowLoader = isLoading || isPlotsDeferred;
   const [loaderVisible, setLoaderVisible] = useState(false);
   const loaderStartRef = useRef(0);
   const loaderHideTimerRef = useRef(null);
@@ -1120,39 +1136,59 @@ export default function AgriMap({
       layer.on({
         click: () => onPlotClick?.(feature),
       });
-      layer.bindTooltip(
-        '<span style="font-size:11px;color:#64748b;">Field details…</span>',
-        {
+
+      const p = feature?.properties || {};
+
+      const tooltipHtmlCached = () => {
+        let html = hoverHtmlCacheRef.current.get(featureId);
+        if (!html) {
+          html = buildPlotHoverHtml(feature);
+          hoverHtmlCacheRef.current.set(featureId, html);
+        }
+        return html;
+      };
+
+      if (p.layerType === "district") {
+        const hoverHtml = tooltipHtmlCached();
+        layer.bindTooltip(hoverHtml, {
           sticky: true,
           opacity: 1,
           direction: "auto",
           className: "agri-plot-hover",
           interactive: false,
-        },
-      );
-      let hoverBuilt = false;
-      layer.on("tooltipopen", () => {
-        if (hoverBuilt) return;
-        hoverBuilt = true;
-        const cached = hoverHtmlCacheRef.current.get(featureId);
-        const hoverHtml = cached || buildPlotHoverHtml(feature);
-        if (!cached) hoverHtmlCacheRef.current.set(featureId, hoverHtml);
-        const tip = layer.getTooltip?.();
-        if (tip?.setContent) tip.setContent(hoverHtml);
-      });
-      const p = feature?.properties || {};
-      if (p.layerType === "district") {
-        /** File-backed district outline: one UI only — rich card on hover (tooltip), no click popup (avoids double card on tap). */
-        if (p.boundarySource !== "district-geojson-file") {
+        });
+        /** Grid districts: popup on click. File-backed outlines: tooltip only (avoid double panel). */
+        if (
+          p.boundarySource !== "district-geojson-file" &&
+          p.boundarySource !== "district-simplified-outline"
+        ) {
           layer.bindPopup(buildDistrictPopupHtml(feature), {
             className: "agri-district-popup",
             maxWidth: 300,
           });
         }
-      } else if (showSurveyPopup && platformMode === "survey") {
+        return;
+      }
+
+      /** Parcels (Washim/Jalna, etc.): bind full card immediately — deferred tooltipopen breaks with Canvas GeoJSON. */
+      const plotCardHtml = tooltipHtmlCached();
+      layer.bindTooltip(plotCardHtml, {
+        sticky: true,
+        opacity: 1,
+        direction: "auto",
+        className: "agri-plot-hover",
+        interactive: false,
+      });
+
+      if (platformMode === "survey" && showSurveyPopup) {
         layer.bindPopup(buildSurveyPopupHtml(feature), {
           className: "agri-survey-popup",
           maxWidth: 280,
+        });
+      } else {
+        layer.bindPopup(plotCardHtml, {
+          className: "agri-plot-hover",
+          maxWidth: 320,
         });
       }
     },
@@ -1220,6 +1256,7 @@ export default function AgriMap({
           <GeoJSON data={villageBoundary} style={VILLAGE_OUTLINE_STYLE} renderer={canvasRenderer} />
         )}
 
+        {/* Immediate data so polygon clicks match current filters (deferred value lag cleared selection). */}
         <ViewportPlotGeoJson
           plotData={plotData}
           styleFor={styleFor}

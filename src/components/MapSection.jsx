@@ -442,9 +442,11 @@ export default function MapSection({
     }
 
     if (selectedSampleFieldId) {
-      features = features.filter(
-        (f) => f.properties?._id === selectedSampleFieldId
-      );
+      const key = String(selectedSampleFieldId);
+      features = features.filter((f) => {
+        const raw = f.properties?._id ?? f.properties?.id;
+        return raw != null && String(raw) === key;
+      });
     }
 
     return { ...sampleFields, features };
