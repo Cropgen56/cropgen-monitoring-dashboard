@@ -4,7 +4,7 @@
  */
 
 export const PLATFORM_TAGLINE =
-  "Single platform integrating farmer-level data + satellite intelligence + AI decision system";
+  "CropGen — farmer-level data, satellite intelligence, and AI-assisted programme decisions in one workspace.";
 
 export const stateSummary = {
   state: "Maharashtra",

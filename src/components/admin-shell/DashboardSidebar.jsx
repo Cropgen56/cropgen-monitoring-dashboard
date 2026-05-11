@@ -56,9 +56,9 @@ export default function DashboardSidebar() {
             <Leaf className="h-6 w-6" strokeWidth={2} />
           </div>
           <div className="min-w-0">
-            <p className="text-[15px] font-bold tracking-tight text-white">AgriMonitor</p>
+            <p className="text-[15px] font-bold tracking-tight text-white">CropGen</p>
             <p className="text-[10px] leading-tight text-gray-500">
-              AI Smart Agriculture Administration System
+              Crop monitoring &amp; administration intelligence
             </p>
           </div>
         </div>

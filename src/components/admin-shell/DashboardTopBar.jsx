@@ -84,7 +84,7 @@ export default function DashboardTopBar() {
   ]);
 
   const meta = ROUTE_META[pathname] || {
-    title: "AGRIMONITOR",
+    title: "CROPGEN",
     subtitle: "Agriculture administration",
   };
 

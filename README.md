@@ -1,4 +1,4 @@
-# AgriMonitor Monitoring Dashboard
+# CropGen Monitoring Dashboard
 
 Hackathon-ready **field + satellite monitoring** workspace for Maharashtra: survey intelligence (maps and charts), government admin console (KPIs, schemes, alerts), and AI cluster insights — built with **React 19**, **Vite 7**, **Tailwind CSS 4**, **Leaflet / react-leaflet**, and **Recharts**.
 
