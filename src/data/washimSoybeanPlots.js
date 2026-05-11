@@ -4,7 +4,7 @@
  */
 
 import * as turf from "@turf/turf";
-import { SOYBEAN_CROP_IMAGE_URL } from "./cropAssets";
+import { getCropImageUrl } from "./cropAssets";
 
 const NDVI_15 = [
   { date: "Day 1", "2025": 0.38, "2024": 0.45 },
@@ -140,7 +140,7 @@ export function buildWashimSoybeanProps(index, areaHa) {
     clusterId: `WH-SY-${String(1 + (index % 8)).padStart(2, "0")}`,
     area_ha: areaHa.toFixed(2),
     cropType: "Soybean",
-    cropImage: SOYBEAN_CROP_IMAGE_URL,
+    cropImage: getCropImageUrl("Soybean"),
     cropHealth: hi.label,
     cropHealthPercent: hi.pct,
     sowingDate: "2025-07-12",

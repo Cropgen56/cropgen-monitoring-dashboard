@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { BadgeCheck, User } from "lucide-react";
-import { BANANA_CROP_IMAGE_URL, SOYBEAN_CROP_IMAGE_URL } from "../../data/cropAssets";
+import { getCropImageUrl } from "../../data/cropAssets";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -23,9 +23,7 @@ export default function FarmerProfileTabs({ profile, district }) {
   const p = profile || {};
   const name = p.farmerName || "—";
   const fid = p.farmerId || p._id || "—";
-  const crop = String(p.cropType || "").toLowerCase();
-  const banner =
-    crop === "banana" ? BANANA_CROP_IMAGE_URL : SOYBEAN_CROP_IMAGE_URL;
+  const banner = p.cropImage || getCropImageUrl(p.cropType);
 
   return (
     <div className="flex h-full min-h-[420px] flex-col rounded-xl border border-white/[0.08] bg-[#111820] shadow-[0_8px_40px_rgba(0,0,0,0.35)]">

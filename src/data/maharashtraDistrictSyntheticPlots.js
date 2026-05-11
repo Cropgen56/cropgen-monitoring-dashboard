@@ -4,7 +4,7 @@
  */
 
 import * as turf from "@turf/turf";
-import { SOYBEAN_CROP_IMAGE_URL, BANANA_CROP_IMAGE_URL } from "./cropAssets";
+import { getCropImageUrl } from "./cropAssets";
 import { getTalukas } from "./maharashtraHierarchy";
 import { normalizeDistrictKey } from "./monitoringDefinitions";
 
@@ -67,6 +67,14 @@ function cropClusterSuffix(crop) {
     Wheat: "WT",
     Maize: "MZ",
     Tobacco: "TB",
+    Tur: "TU",
+    Jowar: "JO",
+    Bajra: "BJ",
+    "Gram (Chana)": "GC",
+    Onion: "ON",
+    Grapes: "GP",
+    Orange: "OR",
+    Groundnut: "GN",
   };
   if (map[c]) return map[c];
   const alnum = c.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
@@ -231,6 +239,19 @@ function waterSeriesFor(index) {
 }
 
 /**
+ * Plot props + 15-day NDVI / water series (same as synthetic parcel enrichment).
+ */
+export function buildFullDemoPlotProps(index, areaHa, districtName, talukaPool, crop = "Soybean") {
+  const base = buildDistrictPlotProps(index, areaHa, districtName, talukaPool, crop);
+  return {
+    ...base,
+    plotIndex: index,
+    ndviSeries: ndviSeriesFor(index),
+    waterSeries: waterSeriesFor(index),
+  };
+}
+
+/**
  * Full parcel card props (Washim / Jalna style) for any MH district demo grid.
  * @param {string[]} talukaPool from `getTalukas(district)`
  * @param {string} [crop] sidebar crop — Soybean, Banana, etc.
@@ -265,7 +286,7 @@ export function buildDistrictPlotProps(index, areaHa, districtName, talukaPool, 
       clusterId: `${prefix}-BN-${String(1 + (index % 8)).padStart(2, "0")}`,
       area_ha: areaHa.toFixed(2),
       cropType: "Banana",
-      cropImage: BANANA_CROP_IMAGE_URL,
+      cropImage: getCropImageUrl("Banana"),
       cropHealth: hi.label,
       cropHealthPercent: hi.pct,
       sowingDate: "2026-02-08",
@@ -343,7 +364,7 @@ export function buildDistrictPlotProps(index, areaHa, districtName, talukaPool, 
     clusterId: `${prefix}-${cs}-${String(1 + (index % 8)).padStart(2, "0")}`,
     area_ha: areaHa.toFixed(2),
     cropType: cropLabel,
-    cropImage: SOYBEAN_CROP_IMAGE_URL,
+    cropImage: getCropImageUrl(cropLabel),
     cropHealth: hi.label,
     cropHealthPercent: hi.pct,
     sowingDate: "2025-07-08",

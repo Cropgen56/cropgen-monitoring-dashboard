@@ -12,6 +12,7 @@ import SurveyPage from "./pages/SurveyPage";
 import AdminPage from "./pages/AdminPage";
 import AIInsightsPage from "./pages/AIInsightsPage";
 import GovernancePage from "./pages/GovernancePage";
+import FarmersRegistryPage from "./pages/FarmersRegistryPage";
 import {
   VerificationsModulePage,
   SchemesModulePage,
@@ -37,6 +38,7 @@ export default function App() {
                   <Route path="/dashboard" element={<DashboardOverviewPage />} />
                   <Route path="/governance" element={<GovernancePage />} />
                   <Route path="/admin" element={<AdminPage />} />
+                  <Route path="/farmers" element={<FarmersRegistryPage />} />
                   <Route path="/survey" element={<SurveyPage />} />
                   <Route path="/verifications" element={<VerificationsModulePage />} />
                   <Route path="/schemes" element={<SchemesModulePage />} />

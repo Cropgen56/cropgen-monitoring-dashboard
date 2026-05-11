@@ -22,7 +22,7 @@ import L from "leaflet";
 import * as turf from "@turf/turf";
 import "leaflet/dist/leaflet.css";
 import { validationPoints } from "../../data/agriStateData";
-import { BANANA_CROP_IMAGE_URL, SOYBEAN_CROP_IMAGE_URL } from "../../data/cropAssets";
+import { getCropImageUrl } from "../../data/cropAssets";
 import {
   CROP_HEX,
   aiRiskZoneColors,
@@ -170,17 +170,12 @@ function buildPlotHoverHtml(feature, mhSelectedDistrict = "") {
   const perimStr =
     perimeterM > 0 ? `${Math.round(perimeterM)} m` : "—";
 
-  const ct = String(p.cropType || "").toLowerCase();
-  const isSoybean = ct === "soybean" || ct === "soyabean";
-  const isBanana = ct === "banana";
-  const cropBanner =
-    isSoybean || isBanana
-      ? `<div style="height:72px;overflow:hidden;line-height:0;background:${
-          isBanana ? "#422006" : "#1c1917"
-        };">
-  <img src="${isBanana ? BANANA_CROP_IMAGE_URL : SOYBEAN_CROP_IMAGE_URL}" alt="" width="300" height="72" style="width:100%;height:72px;object-fit:cover;object-position:center 35%;display:block;"/>
+  const cropImg = p.cropImage || getCropImageUrl(p.cropType);
+  const cropBanner = cropImg
+    ? `<div style="height:72px;overflow:hidden;line-height:0;background:#1c1917;">
+  <img src="${esc(cropImg)}" alt="" width="300" height="72" style="width:100%;height:72px;object-fit:cover;object-position:center 35%;display:block;"/>
 </div>`
-      : "";
+    : "";
 
   return `
 <div style="width:100%;max-width:288px;border-radius:12px;overflow:hidden;box-shadow:0 12px 32px rgba(0,0,0,.45);font-family:system-ui,-apple-system,sans-serif;font-size:12px;color:#1e293b;background:#fff;">

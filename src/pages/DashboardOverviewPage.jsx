@@ -18,6 +18,17 @@ import AgriMap from "../components/hackathon/AgriMap";
 import HealthLegend from "../components/ui/HealthLegend";
 import FarmerProfileTabs from "../components/admin-shell/FarmerProfileTabs";
 import { getAlertsFeed } from "../data/agriStateData";
+import {
+  aggregateDistrictGovernance,
+  generateGovernanceInsights,
+  propsToFeatureCollection,
+} from "../data/governanceEngine";
+import { MAHARASHTRA_DISTRICTS } from "../data/maharashtraHierarchy";
+import {
+  getFarmerRegistrySeedRows,
+  filterSeedRowsByDistrict,
+  FARMER_REGISTRY_SEED_COUNT,
+} from "../data/farmerRegistrySeed";
 
 const DEMO_FARMER = {
   farmerName: "Sunil Gawai",
@@ -69,30 +80,73 @@ function scoreColor(score) {
   return "text-emerald-400";
 }
 
+/** Talukas whose max parcel impact in the cohort is ≥ 71 (high / critical band). */
+function highRiskTalukaCount(rows) {
+  const maxByT = new Map();
+  rows.forEach((p) => {
+    const t = String(p.taluka || "").trim();
+    if (!t) return;
+    const g = Number(p.governanceImpactScore) || 0;
+    maxByT.set(t, Math.max(maxByT.get(t) ?? 0, g));
+  });
+  return [...maxByT.values()].filter((x) => x >= 71).length;
+}
+
 export default function DashboardOverviewPage() {
   const s = useAgriPlatform();
-  const { setAdminMapLayer, governanceRollup: rollup, governanceInsights: insights } = s;
+  const { setAdminMapLayer, governanceRollup: rollup } = s;
 
   useEffect(() => {
     setAdminMapLayer("impact");
   }, [setAdminMapLayer]);
 
-  const kpis = useMemo(() => {
-    const villages = rollup?.villagesImpacted ?? 0;
-    const area = rollup?.totalAreaAffectedHa ?? 0;
-    const plots = rollup?.plotCount ?? 0;
-    const avg = rollup?.avgImpactScore ?? 0;
+  const seedRows = useMemo(() => {
+    if (s.filterStateCode !== "MH") return [];
+    return filterSeedRowsByDistrict(getFarmerRegistrySeedRows(), s.district);
+  }, [s.filterStateCode, s.district]);
 
+  const seedRollup = useMemo(() => {
+    if (!seedRows.length) return null;
+    return aggregateDistrictGovernance(propsToFeatureCollection(seedRows));
+  }, [seedRows]);
+
+  const displayRollup = useMemo(() => seedRollup ?? rollup, [seedRollup, rollup]);
+
+  const displayInsights = useMemo(() => {
+    const label =
+      s.district ||
+      (s.filterStateCode === "MH" ? `Maharashtra (${MAHARASHTRA_DISTRICTS.length} districts)` : "");
+    return generateGovernanceInsights({ district: label, rollup: displayRollup });
+  }, [displayRollup, s.district, s.filterStateCode]);
+
+  const kpis = useMemo(() => {
+    const r = displayRollup;
+    if (!r) {
+      return {
+        villages: "—",
+        areaHa: "—",
+        farmersRisk: "—",
+        highTalukas: "—",
+        cropStress: "—",
+        cropStressLabel: "—",
+        alerts: "—",
+      };
+    }
+    const avg = r.avgImpactScore ?? 0;
+    const alertsN = Math.min(
+      120,
+      (r.criticalPlots ?? 0) * 4 + Math.max(0, Math.round((r.plotCount ?? 0) * 0.015)),
+    );
     return {
-      villages: villages > 0 ? villages : 124,
-      areaHa: area > 0 ? Math.round(area).toLocaleString("en-IN") : "28,450",
-      farmersRisk: plots > 0 ? Math.min(50000, plots * 142 + 8200).toLocaleString("en-IN") : "18,420",
-      highTalukas: rollup?.criticalPlots > 2 ? Math.min(12, 5 + rollup.criticalPlots) : 7,
-      cropStress: avg > 0 ? `${avg}%` : "68%",
+      villages: r.villagesImpacted,
+      areaHa: Math.round(r.totalAreaAffectedHa || 0).toLocaleString("en-IN"),
+      farmersRisk: (r.moderatePlusPlots ?? 0).toLocaleString("en-IN"),
+      highTalukas: seedRows.length ? highRiskTalukaCount(seedRows) : Math.min(36, (r.criticalPlots ?? 0) + 3),
+      cropStress: `${avg}%`,
       cropStressLabel: avg > 60 ? "High" : avg > 40 ? "Moderate" : "Elevated",
-      alerts: 32,
+      alerts: alertsN,
     };
-  }, [rollup]);
+  }, [displayRollup, seedRows]);
 
   const profile = useMemo(() => {
     if (s.selectedProperties && Object.keys(s.selectedProperties).length) {
@@ -102,37 +156,52 @@ export default function DashboardOverviewPage() {
   }, [s.selectedProperties, s.district]);
 
   const trendData = useMemo(() => {
-    const base = rollup?.avgImpactScore || 68;
+    const base = displayRollup?.avgImpactScore ?? 45;
     return Array.from({ length: 30 }, (_, i) => ({
       d: i + 1,
-      v: Math.round(Math.min(100, Math.max(35, base + Math.sin(i / 5) * 12 + (i % 7) * 0.8))),
+      v: Math.round(
+        Math.min(100, Math.max(8, base + ((i * 13 + base) % 19) - 9 + (i % 3))),
+      ),
     }));
-  }, [rollup?.avgImpactScore]);
+  }, [displayRollup?.avgImpactScore]);
 
   const donutData = useMemo(() => {
-    const cw = rollup?.cropWise;
+    const cw = displayRollup?.cropWise;
     if (cw && Object.keys(cw).length) {
       return Object.entries(cw).map(([name, v]) => ({
         name: name.length > 12 ? `${name.slice(0, 11)}…` : name,
         value: Math.round(v.stressedHa * 10) / 10 || 0.1,
       }));
     }
-    return [
-      { name: "Soybean", value: 42 },
-      { name: "Cotton", value: 18 },
-      { name: "Tur", value: 14 },
-      { name: "Other", value: 12 },
-    ];
-  }, [rollup?.cropWise]);
+    return [{ name: "No cohort data", value: 1 }];
+  }, [displayRollup?.cropWise]);
 
   const DONUT_COLORS = ["#79c24a", "#3b82f6", "#f59e0b", "#a855f7", "#ef4444"];
 
   const talukaRows = useMemo(() => {
+    if (seedRows.length > 0) {
+      const byT = new Map();
+      seedRows.forEach((p) => {
+        const taluka = String(p.taluka || "").trim() || "—";
+        if (!byT.has(taluka)) byT.set(taluka, { scores: [], area: 0 });
+        const o = byT.get(taluka);
+        o.scores.push(Number(p.governanceImpactScore) || 0);
+        o.area += Number(p.area_ha) || 0;
+      });
+      return [...byT.entries()]
+        .map(([taluka, v]) => ({
+          taluka,
+          score: Math.round(v.scores.reduce((a, b) => a + b, 0) / v.scores.length),
+          area: `${Math.round(v.area * 100) / 100} ha`,
+        }))
+        .sort((a, b) => b.score - a.score)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
     const talukas =
       s.talukaOptions?.length > 1
         ? s.talukaOptions
         : ["Washim", "Risod", "Mangrulpir", "Karanja", "Malegaon", "Manora"];
-    const base = rollup?.avgImpactScore || 68;
+    const base = displayRollup?.avgImpactScore || 45;
     return talukas
       .map((t, i) => ({
         taluka: t,
@@ -141,23 +210,70 @@ export default function DashboardOverviewPage() {
       }))
       .sort((a, b) => b.score - a.score)
       .map((r, i) => ({ ...r, rank: i + 1 }));
-  }, [s.talukaOptions, rollup?.avgImpactScore]);
+  }, [seedRows, s.talukaOptions, displayRollup?.avgImpactScore]);
 
   const alerts = useMemo(() => getAlertsFeed(s.district || "Washim").slice(0, 4), [s.district]);
 
-  const grievancePie = [
-    { name: "Open", value: 37, color: "#f97316" },
-    { name: "In progress", value: 34, color: "#eab308" },
-    { name: "Resolved", value: 29, color: "#22c55e" },
-  ];
+  const grievancePie = useMemo(() => {
+    const r = displayRollup;
+    if (!r) {
+      return [
+        { name: "Open", value: 34, color: "#f97316" },
+        { name: "In progress", value: 33, color: "#eab308" },
+        { name: "Resolved", value: 33, color: "#22c55e" },
+      ];
+    }
+    const open = Math.min(55, 18 + (r.criticalPlots ?? 0) * 2 + (r.moderatePlusPlots % 7));
+    const prog = Math.min(48, 22 + ((r.plotCount ?? 0) % 11));
+    let resolved = 100 - open - prog;
+    if (resolved < 12) {
+      resolved = 12;
+    }
+    const sum = open + prog + resolved;
+    const scale = 100 / sum;
+    return [
+      { name: "Open", value: Math.round(open * scale), color: "#f97316" },
+      { name: "In progress", value: Math.round(prog * scale), color: "#eab308" },
+      { name: "Resolved", value: Math.max(12, 100 - Math.round(open * scale) - Math.round(prog * scale)), color: "#22c55e" },
+    ];
+  }, [displayRollup]);
+
+  const actionStats = useMemo(() => {
+    const r = displayRollup;
+    if (!r) return { pending: "—", grievances: "—" };
+    return {
+      pending: Math.max(3, Math.round((r.plotCount ?? 0) * 0.024)),
+      grievances: Math.max(2, Math.round((r.criticalPlots ?? 0) * 1.1 + (r.moderatePlusPlots ?? 0) * 0.008)),
+    };
+  }, [displayRollup]);
 
   return (
     <div className="p-5 md:p-6 space-y-5 max-w-[1920px] mx-auto">
+      {s.filterStateCode === "MH" && (
+        <p className="text-[11px] leading-relaxed text-gray-500 -mt-1 mb-1">
+          KPIs and charts use the{" "}
+          <strong className="text-gray-300">{FARMER_REGISTRY_SEED_COUNT.toLocaleString("en-IN")} farmer</strong>{" "}
+          major-crops cohort
+          {s.district
+            ? ` · district ${s.district} (${seedRows.length.toLocaleString("en-IN")} records)`
+            : ` · all ${MAHARASHTRA_DISTRICTS.length} districts (state view)`}
+          . The map shows parcel / boundary layers from Quick filters.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Villages impacted" value={kpis.villages} trend="↑ 18% vs last 7 days" trendUp />
         <KpiCard label="Ha. affected" value={`${kpis.areaHa} ha`} trend="↑ 21% vs last 7 days" trendUp />
         <KpiCard label="Farmers at risk" value={kpis.farmersRisk} trend="↑ 16% vs last 7 days" trendUp />
-        <KpiCard label="High risk talukas" value={String(kpis.highTalukas).padStart(2, "0")} trend="↑ 3 vs last 7 days" trendUp />
+        <KpiCard
+          label="High risk talukas"
+          value={
+            typeof kpis.highTalukas === "number"
+              ? String(kpis.highTalukas).padStart(2, "0")
+              : kpis.highTalukas
+          }
+          trend="↑ 3 vs last 7 days"
+          trendUp
+        />
         <KpiCard
           label="Crop stress (avg.)"
           value={kpis.cropStress}
@@ -221,7 +337,10 @@ export default function DashboardOverviewPage() {
             <h3 className="text-sm font-bold text-white">District impact summary</h3>
             <span className="text-[11px] text-gray-500">
               Score{" "}
-              <strong className="text-amber-300">{rollup?.avgImpactScore ?? 68}</strong>/100
+              <strong className="text-amber-300">{displayRollup?.avgImpactScore ?? "—"}</strong>/100
+              {seedRollup ? (
+                <span className="text-gray-600"> · cohort n={seedRows.length}</span>
+              ) : null}
             </span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -318,7 +437,10 @@ export default function DashboardOverviewPage() {
         <div className="rounded-xl border border-white/[0.08] bg-[#111820] p-4">
           <h3 className="text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-3">AI recommendations</h3>
           <ul className="space-y-2 text-[11px] text-gray-300">
-            {(insights.length ? insights : ["Priority irrigation support in stressed clusters."]).slice(0, 4).map((line, i) => (
+            {(displayInsights.length
+              ? displayInsights
+              : ["Priority irrigation support in stressed clusters."]
+            ).slice(0, 4).map((line, i) => (
               <li key={i} className="flex gap-2 border-l-2 border-cg-accent/40 pl-2">
                 {line}
               </li>
@@ -346,10 +468,10 @@ export default function DashboardOverviewPage() {
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2 text-center text-[10px] text-gray-500">
             <div className="rounded-md bg-black/30 py-2">
-              <p className="font-bold text-white text-lg">24</p> Pending applications
+              <p className="font-bold text-white text-lg">{actionStats.pending}</p> Pending applications
             </div>
             <div className="rounded-md bg-black/30 py-2">
-              <p className="font-bold text-white text-lg">11</p> Open grievances
+              <p className="font-bold text-white text-lg">{actionStats.grievances}</p> Open grievances
             </div>
           </div>
         </div>

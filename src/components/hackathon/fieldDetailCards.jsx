@@ -1,15 +1,5 @@
 import React from "react";
-import { Leaf } from "lucide-react";
-import { BANANA_CROP_IMAGE_URL, SOYBEAN_CROP_IMAGE_URL } from "../../data/cropAssets";
-
-function isSoybeanCropName(ct) {
-  const c = String(ct || "").toLowerCase();
-  return c === "soybean" || c === "soyabean";
-}
-
-function isBananaCropName(ct) {
-  return String(ct || "").toLowerCase() === "banana";
-}
+import { getCropImageUrl } from "../../data/cropAssets";
 
 export function CropHealthCard({ p }) {
   if (!p) return null;
@@ -25,23 +15,11 @@ export function CropHealthCard({ p }) {
       <h3 className="text-sm font-bold text-white">Crop Health</h3>
       <div className="mt-3 grid grid-cols-[96px_1fr] gap-3">
         <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/40">
-          {isSoybeanCropName(p.cropType) ? (
-            <img
-              src={SOYBEAN_CROP_IMAGE_URL}
-              alt=""
-              className="h-full w-full object-cover object-center"
-            />
-          ) : isBananaCropName(p.cropType) ? (
-            <img
-              src={BANANA_CROP_IMAGE_URL}
-              alt=""
-              className="h-full w-full object-cover object-center"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-amber-900/35 to-lime-950/50">
-              <Leaf className="h-9 w-9 text-cg-accent/85" />
-            </div>
-          )}
+          <img
+            src={p.cropImage || getCropImageUrl(p.cropType)}
+            alt=""
+            className="h-full w-full object-cover object-center"
+          />
         </div>
         <div className="min-w-0 space-y-1 text-[11px] leading-snug">
           <p className="flex justify-between gap-2 text-white/95">

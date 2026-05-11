@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import wheatCrop from "../assets/wheat.png";
 import SoilHealthChart from "./crophealth/SoilHealthChart";
 import { useFieldData } from "../context/FieldDataContext";
-import { SOYBEAN_CROP_IMAGE_URL } from "../data/cropAssets";
+import { getCropImageUrl } from "../data/cropAssets";
 
 export default function SoilHealth() {
   const [autoDetectCrop, setAutoDetectCrop] = useState(true);
@@ -27,17 +26,7 @@ export default function SoilHealth() {
     1,
   );
 
-  const cropImageSrc = (() => {
-    if (fieldData.cropImage) return fieldData.cropImage;
-
-    const crop = (majorCrop || "").toLowerCase();
-    if (crop === "soybean" || crop === "soyabean") return SOYBEAN_CROP_IMAGE_URL;
-    if (crop === "maize") return "/maize.jpg";
-    if (crop === "tobacco") return "/tobacco.jpg";
-    if (crop === "other") return "/mixed.jpg";
-
-    return wheatCrop;
-  })();
+  const cropImageSrc = fieldData.cropImage || getCropImageUrl(majorCrop);
 
   // Calculate yield difference
   const yieldDifference = soilHealthData.aiYield - soilHealthData.standardYield;

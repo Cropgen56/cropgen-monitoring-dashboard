@@ -1,0 +1,96 @@
+{
+  "state": "Maharashtra",
+  "total_districts": 36,
+  "major_crops": [
+    {
+      "crop_name": "Cotton",
+      "season": "Kharif",
+      "major_regions": ["Vidarbha", "Marathwada"],
+      "major_districts": ["Yavatmal", "Amravati", "Akola", "Wardha"]
+    },
+    {
+      "crop_name": "Soybean",
+      "season": "Kharif",
+      "major_regions": ["Vidarbha", "Marathwada"],
+      "major_districts": ["Yavatmal", "Latur", "Parbhani", "Washim"]
+    },
+    {
+      "crop_name": "Sugarcane",
+      "season": "Annual",
+      "major_regions": ["Western Maharashtra"],
+      "major_districts": ["Pune", "Kolhapur", "Sangli", "Satara"]
+    },
+    {
+      "crop_name": "Tur",
+      "season": "Kharif",
+      "major_regions": ["Vidarbha", "Marathwada"],
+      "major_districts": ["Yavatmal", "Latur", "Parbhani", "Nanded"]
+    },
+    {
+      "crop_name": "Rice",
+      "season": "Kharif",
+      "major_regions": ["Konkan", "Eastern Vidarbha"],
+      "major_districts": ["Ratnagiri", "Sindhudurg", "Gadchiroli", "Chandrapur"]
+    },
+    {
+      "crop_name": "Wheat",
+      "season": "Rabi",
+      "major_regions": ["Western Maharashtra", "North Maharashtra"],
+      "major_districts": ["Pune", "Ahmednagar", "Nashik", "Solapur"]
+    },
+    {
+      "crop_name": "Jowar",
+      "season": "Rabi/Kharif",
+      "major_regions": ["Marathwada", "Western Maharashtra"],
+      "major_districts": ["Solapur", "Osmanabad", "Beed", "Latur"]
+    },
+    {
+      "crop_name": "Bajra",
+      "season": "Kharif",
+      "major_regions": ["Dryland Regions"],
+      "major_districts": ["Ahmednagar", "Beed", "Jalna", "Dhule"]
+    },
+    {
+      "crop_name": "Maize",
+      "season": "Kharif/Rabi",
+      "major_regions": ["Multiple Regions"],
+      "major_districts": ["Nashik", "Pune", "Aurangabad", "Nagpur"]
+    },
+    {
+      "crop_name": "Gram (Chana)",
+      "season": "Rabi",
+      "major_regions": ["Dry Regions"],
+      "major_districts": ["Latur", "Parbhani", "Beed", "Nanded"]
+    },
+    {
+      "crop_name": "Onion",
+      "season": "Multiple",
+      "major_regions": ["North Maharashtra"],
+      "major_districts": ["Nashik", "Ahmednagar", "Pune"]
+    },
+    {
+      "crop_name": "Grapes",
+      "season": "Annual",
+      "major_regions": ["Western Maharashtra"],
+      "major_districts": ["Nashik", "Sangli", "Pune"]
+    },
+    {
+      "crop_name": "Banana",
+      "season": "Annual",
+      "major_regions": ["North Maharashtra"],
+      "major_districts": ["Jalgaon"]
+    },
+    {
+      "crop_name": "Orange",
+      "season": "Annual",
+      "major_regions": ["Vidarbha"],
+      "major_districts": ["Nagpur", "Amravati"]
+    },
+    {
+      "crop_name": "Groundnut",
+      "season": "Kharif",
+      "major_regions": ["Western Maharashtra"],
+      "major_districts": ["Satara", "Sangli", "Kolhapur"]
+    }
+  ]
+}

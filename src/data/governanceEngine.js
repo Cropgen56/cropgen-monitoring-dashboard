@@ -150,6 +150,25 @@ export function enrichGovernanceFeatureCollection(fc) {
 }
 
 /**
+ * Build a FeatureCollection from plain plot property objects (e.g. registry seed rows)
+ * so `aggregateDistrictGovernance` can run on them.
+ * @param {Record<string, unknown>[] | null | undefined} propsArray
+ */
+export function propsToFeatureCollection(propsArray) {
+  if (!Array.isArray(propsArray) || propsArray.length === 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+  return {
+    type: "FeatureCollection",
+    features: propsArray.map((p) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [0, 0] },
+      properties: p && typeof p === "object" ? p : {},
+    })),
+  };
+}
+
+/**
  * @param {import('geojson').FeatureCollection | null} fc
  */
 export function aggregateDistrictGovernance(fc) {
