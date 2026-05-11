@@ -47,6 +47,25 @@ import { fetchCountries, fetchStates } from "../api/locationApi";
 
 /** Fewer parcels + simplified outline-only clipping keeps non-Washim/Jalna districts responsive. */
 const SYNTHETIC_PLOT_COUNT = 20;
+const DISTRICT_GEOJSON_LOADERS = import.meta.glob("../data/*.geojson", {
+  query: "?raw",
+  import: "default",
+});
+
+function normalizeDistrictToken(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+const DISTRICT_GEOJSON_LOADERS_BY_NAME = Object.entries(DISTRICT_GEOJSON_LOADERS).reduce(
+  (acc, [path, loader]) => {
+    const fileName = path.split("/").pop()?.replace(/\.geojson$/i, "") || "";
+    acc[normalizeDistrictToken(fileName)] = loader;
+    return acc;
+  },
+  {},
+);
 
 /** Normalize GeoJSON plot ids so selection survives number/string mismatches. */
 function plotPropertyIdKey(props) {
@@ -166,6 +185,10 @@ export function useAgriPlatformState() {
   /** Demo parcels for MH districts without real GeoJSON — built off-thread via idle callback (see effect). */
   const [districtSyntheticPlots, setDistrictSyntheticPlots] = useState(null);
   const [syntheticPlotsBusy, setSyntheticPlotsBusy] = useState(false);
+  const [districtGeojsonPlots, setDistrictGeojsonPlots] = useState(null);
+  const [districtGeojsonLoading, setDistrictGeojsonLoading] = useState(false);
+  const [districtGeojsonLoadError, setDistrictGeojsonLoadError] = useState(null);
+  const districtGeojsonCacheRef = useRef({});
 
   /** Simplified 36-district outline (public/data/maharashtra-districts-outline.geojson). */
   const [maharashtraDistrictsOutline, setMaharashtraDistrictsOutline] = useState(null);
@@ -312,6 +335,79 @@ export function useAgriPlatformState() {
       jalnaFetchState.inFlight = false;
     };
   }, [filterStateCode, district, jalnaBananaPlots]);
+
+  useEffect(() => {
+    if (filterStateCode !== "MH" || !district || district === "Washim" || district === "Jalna") {
+      setDistrictGeojsonPlots(null);
+      setDistrictGeojsonLoading(false);
+      setDistrictGeojsonLoadError(null);
+      return;
+    }
+
+    const cacheKey = normalizeDistrictToken(district);
+    if (districtGeojsonCacheRef.current[cacheKey]) {
+      setDistrictGeojsonPlots(districtGeojsonCacheRef.current[cacheKey]);
+      setDistrictGeojsonLoading(false);
+      setDistrictGeojsonLoadError(null);
+      return;
+    }
+
+    const loader = DISTRICT_GEOJSON_LOADERS_BY_NAME[cacheKey];
+    if (!loader) {
+      setDistrictGeojsonPlots(null);
+      setDistrictGeojsonLoading(false);
+      setDistrictGeojsonLoadError(`No district GeoJSON file found for ${district}.`);
+      return;
+    }
+
+    let cancelled = false;
+    setDistrictGeojsonLoading(true);
+    setDistrictGeojsonLoadError(null);
+    setDistrictGeojsonPlots(null);
+
+    loader()
+      .then((raw) => {
+        if (cancelled) return null;
+        if (typeof raw === "string") {
+          return JSON.parse(raw);
+        }
+        const loaded = raw?.default ?? raw;
+        if (typeof loaded === "string") {
+          return JSON.parse(loaded);
+        }
+        return loaded;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        if (!data?.features?.length) throw new Error("empty district geojson");
+        districtGeojsonCacheRef.current[cacheKey] = data;
+        setDistrictGeojsonPlots(data);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDistrictGeojsonPlots(null);
+          setDistrictGeojsonLoadError(`Could not load ${district} district GeoJSON.`);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDistrictGeojsonLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filterStateCode, district]);
+
+  const districtGeojsonEnrichedPlots = useMemo(() => {
+    if (!district || district === "Washim" || district === "Jalna") return null;
+    if (!districtGeojsonPlots?.features?.length) return null;
+    return enrichDistrictSyntheticFeatureCollection(
+      districtGeojsonPlots,
+      district,
+      talukaPoolForDistrict(district),
+      crop,
+    );
+  }, [districtGeojsonPlots, district, crop]);
 
   /** Bundled KML/demo plots only (no per-district synthetic). */
   const bundledRealPlotsRaw = useMemo(() => {
@@ -573,6 +669,8 @@ export function useAgriPlatformState() {
       const inDistrict = filterPlotsFeatureCollectionByDistrict(fullPlotsRaw, district);
       if (inDistrict.features.length > 0) {
         plotsPart = inDistrict;
+      } else if (districtGeojsonEnrichedPlots?.features?.length) {
+        plotsPart = districtGeojsonEnrichedPlots;
       } else if (districtSyntheticPlots?.features?.length) {
         plotsPart = districtSyntheticPlots;
       }
@@ -601,6 +699,7 @@ export function useAgriPlatformState() {
     districtOutlineLabeled,
     washimSoybeanPlots,
     jalnaBananaPlots,
+    districtGeojsonEnrichedPlots,
     districtSyntheticPlots,
   ]);
 
@@ -755,6 +854,8 @@ export function useAgriPlatformState() {
       return getWashimAreaOutlineFromFeatureCollection(washimSoybeanPlots);
     if (district === "Jalna" && jalnaBananaPlots)
       return getJalnaAreaOutlineFromFeatureCollection(jalnaBananaPlots);
+    if (districtGeojsonEnrichedPlots?.features?.length)
+      return getSyntheticDistrictPlotsExtentOutline(districtGeojsonEnrichedPlots, district);
     if (districtSyntheticPlots?.features?.length)
       return getSyntheticDistrictPlotsExtentOutline(districtSyntheticPlots, district);
     return null;
@@ -763,6 +864,7 @@ export function useAgriPlatformState() {
     district,
     washimSoybeanPlots,
     jalnaBananaPlots,
+    districtGeojsonEnrichedPlots,
     districtSyntheticPlots,
   ]);
 
@@ -825,7 +927,7 @@ export function useAgriPlatformState() {
   }, [filterStateCode, district, filteredPlots, fullPlots]);
 
   const districtOutlineLoadingCombined =
-    mhAllDistrictsOutlineLoading || syntheticPlotsBusy;
+    mhAllDistrictsOutlineLoading || syntheticPlotsBusy || districtGeojsonLoading;
 
   return useMemo(
     () => ({
@@ -868,6 +970,7 @@ export function useAgriPlatformState() {
       washimLoading,
       jalnaLoadError,
       jalnaLoading,
+      districtGeojsonLoadError,
       filteredPlots,
       fullPlots,
       mapRegionFallback,
@@ -933,6 +1036,7 @@ export function useAgriPlatformState() {
       washimLoading,
       jalnaLoadError,
       jalnaLoading,
+      districtGeojsonLoadError,
       filteredPlots,
       fullPlots,
       mapRegionFallback,
