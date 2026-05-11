@@ -8,20 +8,20 @@ import DashboardTopBar from "../components/admin-shell/DashboardTopBar";
  */
 export default function AdminAppLayout() {
   return (
-    <div className="flex min-h-screen bg-[#0a0e12] text-[13px] text-gray-200 font-sans antialiased">
+    <div className="dashboard-shell-bg flex min-h-screen text-[13px] text-gray-200 font-sans antialiased selection:bg-cg-accent/25 selection:text-white">
       <DashboardSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardTopBar />
-        <main className="custom-scrollbar flex-1 overflow-y-auto overflow-x-hidden bg-[#0a0e12]">
+        <main className="custom-scrollbar flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
-        <footer className="shrink-0 border-t border-white/[0.06] bg-[#080b0f] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-500">
-          <span>
-            All impact scores and predictions are generated using AI models on demo data — not a government
-            certification.
+        <footer className="shrink-0 border-t border-white/[0.06] bg-[#070a0e]/95 px-4 py-2.5 backdrop-blur-sm flex flex-wrap items-center justify-between gap-3 text-[10px] text-gray-500 leading-snug">
+          <span className="max-w-[56rem]">
+            Risk and yield indicators are model-assisted and intended for programme monitoring — not a statutory
+            certification. Official decisions remain with department workflow.
           </span>
-          <span className="flex items-center gap-2 text-gray-600">
-            Last updated: {new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+          <span className="shrink-0 tabular-nums text-gray-600">
+            Session · {new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
           </span>
         </footer>
       </div>

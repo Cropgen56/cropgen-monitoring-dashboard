@@ -146,7 +146,7 @@ function buildDistrictFileBoundaryHoverHtml(feature) {
 </div>`;
 }
 
-function buildPlotHoverHtml(feature) {
+function buildPlotHoverHtml(feature, mhSelectedDistrict = "") {
   const p = feature.properties || {};
   if (
     p.layerType === "district" &&
@@ -156,7 +156,7 @@ function buildPlotHoverHtml(feature) {
     return buildDistrictFileBoundaryHoverHtml(feature);
   }
   if (p.layerType === "district") {
-    return buildMhDistrictBaseTooltipHtml(feature, "");
+    return buildMhDistrictBaseTooltipHtml(feature, mhSelectedDistrict);
   }
   const title =
     (p.name || "Field").split("—")[0].trim() || "Field";
@@ -475,10 +475,9 @@ function useDebouncedMapView(debounceMs) {
 /**
  * react-leaflet <GeoJSON> does not apply `data` updates (only `style`).
  * A single Leaflet GeoJSON layer is created on map.whenReady, then clearLayers + addData
- * keeps vectors in sync. Refs for style/onEach avoid stale closures. Default SVG renderer
- * avoids canvas/renderer races with react-leaflet’s map instance.
+ * keeps vectors in sync. Canvas renderer on this layer only (feature/hackethon-changes); map container avoids preferCanvas so parcel hover/tooltips hit-test correctly.
  */
-function ImperativePlotGeoJsonLayer({ plotData, styleFor, onEachFeature }) {
+function ImperativePlotGeoJsonLayer({ plotData, styleFor, onEachFeature, pathRenderer }) {
   const map = useMap();
   const layerRef = useRef(null);
   const styleRef = useRef(styleFor);
@@ -515,6 +514,7 @@ function ImperativePlotGeoJsonLayer({ plotData, styleFor, onEachFeature }) {
         style: (feature) => styleRef.current(feature),
         onEachFeature: (feature, lyr) => onEachRef.current(feature, lyr),
         interactive: true,
+        ...(pathRenderer ? { renderer: pathRenderer } : {}),
       });
       layer.addTo(map);
       if (typeof layer.bringToFront === "function") {
@@ -539,7 +539,7 @@ function ImperativePlotGeoJsonLayer({ plotData, styleFor, onEachFeature }) {
       layerRef.current = null;
       lastSyncedPlotDataRef.current = undefined;
     };
-  }, [map, syncData]);
+  }, [map, syncData, pathRenderer]);
 
   useEffect(() => {
     const lyr = layerRef.current;
@@ -566,6 +566,7 @@ const ViewportPlotGeoJson = memo(function ViewportPlotGeoJson({
   plotData,
   styleFor,
   onEachFeature,
+  pathRenderer,
 }) {
   const { bbox, zoom } = useDebouncedMapView(280);
   const zoomKey = zoom != null ? Math.round(zoom) : null;
@@ -593,6 +594,7 @@ const ViewportPlotGeoJson = memo(function ViewportPlotGeoJson({
       plotData={displayData}
       styleFor={styleFor}
       onEachFeature={onEachFeature}
+      pathRenderer={pathRenderer}
     />
   );
 });
@@ -722,6 +724,30 @@ const VILLAGE_OUTLINE_STYLE = {
   opacity: 0.85,
 };
 
+/**
+ * Maharashtra district grid on hybrid satellite: cool neutral borders (readable on forest / soil / urban),
+ * amber ring for the district that matches Quick filters — separate from the green state outline.
+ */
+const MH_DISTRICT_GRID_DEFAULT = {
+  fillColor: "#020617",
+  fillOpacity: 0.05,
+  color: "#cbd5e1",
+  weight: 2,
+  opacity: 0.92,
+  lineJoin: "round",
+  lineCap: "round",
+};
+
+const MH_DISTRICT_GRID_ACTIVE = {
+  fillColor: "#451a03",
+  fillOpacity: 0.14,
+  color: "#fbbf24",
+  weight: 3.5,
+  opacity: 1,
+  lineJoin: "round",
+  lineCap: "round",
+};
+
 /** Maharashtra state boundary — green ring on satellite (drawn above district fills). */
 const MAHARASHTRA_STATE_STYLE = {
   fillColor: "#22c55e",
@@ -817,7 +843,7 @@ export default function AgriMap({
 
   useEffect(() => {
     hoverHtmlCacheRef.current.clear();
-  }, [plotData]);
+  }, [plotData, selectedMhDistrict]);
 
   const hasMhDistrictGrid = Boolean(maharashtraDistrictsBaseOutline?.features?.length);
 
@@ -892,13 +918,7 @@ export default function AgriMap({
       const d = String(feature?.properties?.district || "").trim();
       const sel = String(selectedMhDistrict || "").trim();
       const active = Boolean(sel && d === sel);
-      return {
-        fillColor: active ? "#0284c7" : "#1e293b",
-        fillOpacity: active ? 0.18 : 0.09,
-        color: active ? "#0c4a6e" : "#0f172a",
-        weight: active ? 3 : 2,
-        opacity: active ? 1 : 0.94,
-      };
+      return active ? { ...MH_DISTRICT_GRID_ACTIVE } : { ...MH_DISTRICT_GRID_DEFAULT };
     },
     [selectedMhDistrict],
   );
@@ -1019,12 +1039,23 @@ export default function AgriMap({
         String(sid) === String(selectedPlotId);
       const weight = selected ? 3 : 1.2;
       if (p.layerType === "district") {
+        const isOutlineSource =
+          p.boundarySource === "district-geojson-file" ||
+          p.boundarySource === "district-simplified-outline";
+        if (isOutlineSource) {
+          const districtName = String(p.district || "").trim();
+          const sel = String(selectedMhDistrict || "").trim();
+          const districtActive = Boolean(sel && districtName === sel);
+          return districtActive ? { ...MH_DISTRICT_GRID_ACTIVE } : { ...MH_DISTRICT_GRID_DEFAULT };
+        }
         return {
           fillColor: selected ? "#22c55e" : "#38bdf8",
           fillOpacity: selected ? 0.4 : 0.22,
           color: selected ? "#166534" : "#0f766e",
           weight: selected ? 2.5 : 1.4,
           opacity: 0.95,
+          lineJoin: "round",
+          lineCap: "round",
         };
       }
       let fill = "#22c55e";
@@ -1087,7 +1118,7 @@ export default function AgriMap({
         opacity: 0.95,
       };
     },
-    [mapLayer, platformMode, selectedPlotId],
+    [mapLayer, platformMode, selectedPlotId, selectedMhDistrict],
   );
 
   const isPlotsDeferred =
@@ -1128,35 +1159,36 @@ export default function AgriMap({
 
   const onEachPlotFeature = useCallback(
     (feature, layer) => {
-      const featureId =
+      const p = feature?.properties || {};
+      const baseId =
         feature?.properties?._id ||
         feature?.id ||
         `${feature?.properties?.name || "plot"}-${feature?.geometry?.type || "geom"}`;
+      /** District tooltip HTML depends on sidebar selection — avoid stale cache. */
+      const cacheKey =
+        p.layerType === "district"
+          ? `${baseId}|mh:${selectedMhDistrict || ""}|${p.boundarySource || ""}`
+          : baseId;
 
       layer.on({
         click: () => onPlotClick?.(feature),
       });
 
-      const p = feature?.properties || {};
+      let cached = hoverHtmlCacheRef.current.get(cacheKey);
+      if (!cached) {
+        cached = buildPlotHoverHtml(feature, selectedMhDistrict);
+        hoverHtmlCacheRef.current.set(cacheKey, cached);
+      }
 
-      const tooltipHtmlCached = () => {
-        let html = hoverHtmlCacheRef.current.get(featureId);
-        if (!html) {
-          html = buildPlotHoverHtml(feature);
-          hoverHtmlCacheRef.current.set(featureId, html);
-        }
-        return html;
-      };
+      layer.bindTooltip(cached, {
+        sticky: true,
+        opacity: 1,
+        direction: "auto",
+        className: "agri-plot-hover",
+        interactive: false,
+      });
 
       if (p.layerType === "district") {
-        const hoverHtml = tooltipHtmlCached();
-        layer.bindTooltip(hoverHtml, {
-          sticky: true,
-          opacity: 1,
-          direction: "auto",
-          className: "agri-plot-hover",
-          interactive: false,
-        });
         /** Grid districts: popup on click. File-backed outlines: tooltip only (avoid double panel). */
         if (
           p.boundarySource !== "district-geojson-file" &&
@@ -1170,29 +1202,20 @@ export default function AgriMap({
         return;
       }
 
-      /** Parcels (Washim/Jalna, etc.): bind full card immediately — deferred tooltipopen breaks with Canvas GeoJSON. */
-      const plotCardHtml = tooltipHtmlCached();
-      layer.bindTooltip(plotCardHtml, {
-        sticky: true,
-        opacity: 1,
-        direction: "auto",
-        className: "agri-plot-hover",
-        interactive: false,
-      });
-
+      /** Parcels: hover card via tooltip only (feature/hackethon-changes). Survey optionally adds insight popup. */
       if (platformMode === "survey" && showSurveyPopup) {
         layer.bindPopup(buildSurveyPopupHtml(feature), {
           className: "agri-survey-popup",
           maxWidth: 280,
         });
-      } else {
-        layer.bindPopup(plotCardHtml, {
-          className: "agri-plot-hover",
-          maxWidth: 320,
-        });
       }
     },
-    [onPlotClick, showSurveyPopup, platformMode],
+    [
+      onPlotClick,
+      showSurveyPopup,
+      platformMode,
+      selectedMhDistrict,
+    ],
   );
 
   return (
@@ -1203,7 +1226,6 @@ export default function AgriMap({
         className="h-full w-full"
         zoomControl
         attributionControl
-        preferCanvas
       >
         {/* Google hybrid: satellite + labels (cities, roads). Ensure use complies with Google Maps ToS. */}
         <TileLayer
@@ -1261,6 +1283,7 @@ export default function AgriMap({
           plotData={plotData}
           styleFor={styleFor}
           onEachFeature={onEachPlotFeature}
+          pathRenderer={canvasRenderer}
         />
 
         {showValidationPoints &&

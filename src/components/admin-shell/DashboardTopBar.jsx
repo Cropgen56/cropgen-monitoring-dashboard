@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bell, ChevronDown, LogOut } from "lucide-react";
+import { Bell, ChevronDown, LogOut, MapPin } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useAgriPlatform } from "../../context/AgriPlatformContext";
+import { stateSummary } from "../../data/agriStateData";
 
 const ROUTE_META = {
   "/dashboard": {
@@ -66,10 +68,27 @@ export default function DashboardTopBar() {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const { user, logout } = useAuth();
+  const ap = useAgriPlatform();
+
+  const { regionLabel, regionTitle } = useMemo(() => {
+    const countryName = ap.locationCountries.find((c) => c.iso2 === ap.filterCountryCode)?.name;
+    const stateName = ap.locationStates.find((st) => st.state_code === ap.filterStateCode)?.name;
+    const title = [countryName, stateName].filter(Boolean).join(" · ") || "Workspace context";
+    const label = stateName || countryName || "Select region";
+    return { regionLabel: label, regionTitle: title };
+  }, [
+    ap.filterCountryCode,
+    ap.filterStateCode,
+    ap.locationCountries,
+    ap.locationStates,
+  ]);
+
   const meta = ROUTE_META[pathname] || {
     title: "AGRIMONITOR",
     subtitle: "Agriculture administration",
   };
+
+  const alertCount = stateSummary.riskAlertsOpen;
 
   return (
     <header className="sticky top-0 z-50 flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-[#0d1117]/95 px-5 backdrop-blur-md">
@@ -81,20 +100,22 @@ export default function DashboardTopBar() {
       <div className="flex items-center gap-3 shrink-0">
         <button
           type="button"
-          className="hidden sm:flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#111820] px-3 py-2 text-[12px] text-gray-300"
+          title={regionTitle}
+          className="hidden sm:flex max-w-[min(240px,36vw)] items-center gap-2 rounded-lg border border-white/[0.08] bg-[#111820] px-3 py-2 text-left text-[12px] text-gray-200 hover:border-white/[0.12] hover:bg-[#141c26]"
         >
-          Maharashtra
-          <ChevronDown className="h-4 w-4 text-gray-500" />
+          <MapPin className="h-4 w-4 shrink-0 text-cg-accent/90" aria-hidden />
+          <span className="min-w-0 truncate font-medium">{regionLabel}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
         </button>
 
         <button
           type="button"
           className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/[0.08] bg-[#111820] text-gray-400 hover:text-white"
-          aria-label="Notifications"
+          aria-label={`Notifications, ${alertCount} open`}
         >
           <Bell className="h-[18px] w-[18px]" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
-            12
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white tabular-nums">
+            {alertCount > 99 ? "99+" : alertCount}
           </span>
         </button>
 

@@ -45,7 +45,7 @@ const DEMO_FARMER = {
 
 function KpiCard({ label, value, sub, trend, trendUp }) {
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#111820] p-4 shadow-lg shadow-black/20">
+    <div className="dashboard-stat-card">
       <p className="text-[11px] font-medium text-gray-500">{label}</p>
       <p className="mt-1.5 text-xl font-bold tabular-nums text-white tracking-tight">{value}</p>
       {sub && <p className="mt-0.5 text-[10px] text-amber-200/90">{sub}</p>}

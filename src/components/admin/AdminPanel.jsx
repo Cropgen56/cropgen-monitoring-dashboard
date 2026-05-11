@@ -26,23 +26,23 @@ const ADMIN_TABS = [
 const PRIORITY_DESK = [
   {
     id: "p1",
-    title: "Drought risk",
+    title: "Moisture stress — priority review",
     severity: "High",
-    detail: "NDVI stress pattern in cluster — review irrigation scheduling.",
+    detail: "NDVI decline vs seasonal median in rainfed clusters — coordinate irrigation advisories with extension.",
     box: "border-red-800/50 bg-red-950/35",
   },
   {
     id: "p2",
-    title: "Pest alert",
+    title: "Field scouting queue",
     severity: "Medium",
-    detail: "Scouting recommended on adjacent plots (demo signal).",
+    detail: "Adjacent parcels flagged for pest pressure correlation — schedule ground verification within 48 h.",
     box: "border-amber-700/50 bg-amber-950/30",
   },
   {
     id: "p3",
-    title: "Low yield warning",
+    title: "Yield variance watchlist",
     severity: "Medium",
-    detail: "Predicted yield below district benchmark — verify inputs.",
+    detail: "Modelled yield trailing district benchmark — validate sowing window and input records.",
     box: "border-lime-800/40 bg-lime-950/20",
   },
 ];
@@ -166,12 +166,13 @@ export default function AdminPanel({
   return (
     <div className="w-full space-y-4 min-w-0 max-w-[2000px]">
       {/* Header */}
-      <div className="rounded-xl border border-white/[0.08] bg-[#111820] px-4 py-4 shadow-md">
+      <div className="rounded-xl border border-white/[0.08] bg-[#111820]/95 px-4 py-4 shadow-lg shadow-black/30 backdrop-blur-sm">
         <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-cg-accent">
-          Government admin
+          Operations console
         </p>
-        <p className="mt-1 text-xs text-gray-500">
-          AI-assisted verification, impact intelligence, schemes &amp; alerts — demo governance stack
+        <p className="mt-1 text-xs text-gray-400 leading-relaxed max-w-3xl">
+          Desk verification, spatial intelligence, and programme oversight — driven by sidebar geography and season
+          filters. Map overlays reflect the same filtered parcel set as KPIs below.
         </p>
         <nav className="mt-4 flex flex-wrap gap-2" aria-label="Admin sections">
           {ADMIN_TABS.map((t) => (
@@ -218,41 +219,47 @@ export default function AdminPanel({
       {/* Dashboard */}
       {adminTab === "dashboard" && (
         <div className="space-y-4 ">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-4 shadow-md">
-              <p className="text-[10px] text-gray-500">Total farmers</p>
-              <p className="text-xl font-bold text-amber-200">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <div className="dashboard-stat-card">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Registered farmers</p>
+              <p className="mt-1 text-xl font-bold tabular-nums tracking-tight text-amber-200">
                 {(stateSummary.totalFarmersRegistered / 1000).toFixed(0)}k
               </p>
+              <p className="mt-1 text-[9px] text-gray-600">State roll-up (reference)</p>
             </div>
-            <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-4 shadow-md">
-              <p className="text-[10px] text-gray-500">Total land area</p>
-              <p className="text-xl font-bold text-white">
+            <div className="dashboard-stat-card">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Assessed land base</p>
+              <p className="mt-1 text-xl font-bold tabular-nums tracking-tight text-white">
                 {(stateSummary.totalAreaAcres / 1_000_000).toFixed(2)}M ac
               </p>
+              <p className="mt-1 text-[9px] text-gray-600">Declared / surveyed holdings</p>
             </div>
-            <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-4 shadow-md">
-              <p className="text-[10px] text-gray-500">Insurance coverage</p>
-              <p className="text-xl font-bold text-emerald-400">
+            <div className="dashboard-stat-card">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">PMFBY coverage</p>
+              <p className="mt-1 text-xl font-bold tabular-nums tracking-tight text-emerald-400">
                 {stateSummary.insurancePmfbCoveragePct}%
               </p>
+              <p className="mt-1 text-[9px] text-gray-600">Of insurable area</p>
             </div>
-            <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-4 shadow-md">
-              <p className="text-[10px] text-gray-500">Scheme utilization</p>
-              <p className="text-xl font-bold text-lime-300">
+            <div className="dashboard-stat-card">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">MahaDBT uptake</p>
+              <p className="mt-1 text-xl font-bold tabular-nums tracking-tight text-lime-300">
                 {stateSummary.schemeUtilizationMahadbtPct}%
               </p>
+              <p className="mt-1 text-[9px] text-gray-600">Eligible beneficiaries served</p>
             </div>
-            <div className="rounded-2xl border border-[#1a3a22] bg-[#0a180f] p-4 shadow-md col-span-2 md:col-span-1">
-              <p className="text-[10px] text-gray-500">Loan distribution</p>
-              <p className="text-sm font-bold text-amber-200">
+            <div className="dashboard-stat-card col-span-2 md:col-span-1">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-500">Crop credit (KCC)</p>
+              <p className="mt-1 text-sm font-bold tabular-nums text-amber-200">
                 {formatINR(stateSummary.cropLoanDisbursedCrINR * 10000000)}
               </p>
+              <p className="mt-1 text-[9px] text-gray-600">Disbursed · reporting period</p>
             </div>
-            <div className="rounded-2xl border border-amber-500/30 bg-amber-950/15 p-3 col-span-2 md:col-span-3">
-              <p className="text-[10px] text-amber-200/90">
-                Rule-based alerts across loaded fields:{" "}
-                <strong className="text-amber-100">{loadedFieldCount}</strong>
+            <div className="rounded-2xl border border-amber-500/25 bg-gradient-to-r from-amber-950/25 to-[#0c1410] p-3.5 col-span-2 md:col-span-3">
+              <p className="text-[11px] text-amber-100/95 leading-relaxed">
+                <span className="font-semibold text-amber-200">Active map scope:</span>{" "}
+                <span className="tabular-nums font-semibold text-white">{loadedFieldCount}</span> parcel
+                {loadedFieldCount === 1 ? "" : "s"} match current filters — alerts and layers use this subset.
               </p>
             </div>
           </div>
@@ -261,7 +268,7 @@ export default function AdminPanel({
             <div className="rounded-2xl border border-violet-500/25 bg-violet-950/15 p-4 shadow-md">
               <h3 className="text-sm font-bold text-violet-200 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-violet-300" />
-                Impact intelligence (district roll-up)
+                Impact intelligence — filtered district
               </h3>
               <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
                 <div>
@@ -290,7 +297,7 @@ export default function AdminPanel({
           {governanceInsights?.length > 0 && (
             <div className="rounded-2xl border border-cg-accent/25 bg-[#081208] p-4 shadow-md">
               <h3 className="text-xs font-bold uppercase tracking-wide text-cg-accent mb-2">
-                AI governance insights
+                Intelligence summary
               </h3>
               <ul className="space-y-1.5 text-[11px] text-gray-300">
                 {governanceInsights.slice(0, 5).map((line, i) => (

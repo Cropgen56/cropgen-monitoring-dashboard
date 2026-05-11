@@ -19,7 +19,7 @@ export default function DataQualityBanner({ mapDataQuality }) {
       role="status"
     >
       <span className={`font-semibold ${isOutline ? "text-amber-200" : "text-gray-300"}`}>
-        Map scope:{" "}
+        Coverage:{" "}
       </span>
       {mapDataQuality.hint}
     </div>

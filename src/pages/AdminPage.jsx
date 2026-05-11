@@ -1,4 +1,5 @@
 import React from "react";
+import { MapPinned } from "lucide-react";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
 import AdminPanel from "../components/admin/AdminPanel";
 import DataQualityBanner from "../components/platform/DataQualityBanner";
@@ -59,10 +60,15 @@ export default function AdminPage() {
       />
 
       {s.fieldData && (
-        <div className="rounded-lg border border-white/[0.08] bg-[#111820] px-3 py-2 text-center text-[11px] text-gray-400">
-          Selected field context:{" "}
-          <span className="font-semibold text-cg-accent">{s.fieldData.selectionLabel}</span> —{" "}
-          {s.fieldData.selectionSubtitle}
+        <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-cg-accent/20 bg-[#0c1812] px-4 py-2.5 text-[11px] text-gray-300 shadow-inner shadow-black/20">
+          <span className="inline-flex items-center gap-1.5 text-cg-accent/90">
+            <MapPinned className="h-3.5 w-3.5" aria-hidden />
+            <span className="font-semibold uppercase tracking-wide text-[10px]">Selection</span>
+          </span>
+          <span className="h-3 w-px bg-white/10" aria-hidden />
+          <span className="font-semibold text-white">{s.fieldData.selectionLabel}</span>
+          <span className="text-gray-500">·</span>
+          <span className="tabular-nums text-gray-400">{s.fieldData.selectionSubtitle}</span>
         </div>
       )}
     </div>
