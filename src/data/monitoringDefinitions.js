@@ -11,15 +11,12 @@ export function normalizeDistrictKey(value) {
 }
 
 /**
- * Select district GeoJSON key candidates (normalized UI district → file keys).
- * Extend aliases when official names differ from filenames.
+ * Legacy filename aliases (normalized key → extra normalized stems to try).
+ * District files use `{District}.geojson` matching `maharashtraTalukas.json` keys
+ * (e.g. `Bhandara.geojson`, `Mumbai_City.geojson`). Extend here only if a file
+ * must match under an alternate spelling.
  */
-export const DISTRICT_FILE_ALIAS_KEYS = {
-  aurangabad: ["aurangabadakachhatrapatisambhajinagar"],
-  bhandara: ["bhandhana"],
-  mumbaicity: ["mumbaicity"],
-  mumbaisuburban: ["mumbaisuburban"],
-};
+export const DISTRICT_FILE_ALIAS_KEYS = {};
 
 export function districtKeyCandidates(districtName) {
   const n = normalizeDistrictKey(districtName);

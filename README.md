@@ -72,7 +72,7 @@ flowchart LR
 |--------|------|
 | `public/data/washim-soybean-plots.geojson` | Washim soybean plot polygons (enriched in app). |
 | `public/data/jalna-banana-plots.geojson` | Jalna banana plots (lazy-loaded when Jalna selected). |
-| `src/data/*.geojson` | District boundaries (bundled; used when plot-level file not active). |
+| `src/data/<District>.geojson` | High-res district polygons (35 districts; names match `maharashtraTalukas.json` — see `src/data/README.md`). |
 | `src/data/agriStateData.js` | Demo KPIs, alerts, cluster analytics, narrative copy. |
 | `maharashtraDemoPlots.js` | Jalgaon / Nashik style demo fields for charts & selection when merged into full dataset. |
 
