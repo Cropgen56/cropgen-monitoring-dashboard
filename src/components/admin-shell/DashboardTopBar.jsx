@@ -91,26 +91,26 @@ export default function DashboardTopBar() {
   const alertCount = stateSummary.riskAlertsOpen;
 
   return (
-    <header className="sticky top-0 z-50 flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-[#0d1117]/95 px-5 backdrop-blur-md">
+    <header className="sticky top-0 z-50 flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-5 backdrop-blur-md">
       <div className="min-w-0">
-        <h1 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">{meta.title}</h1>
-        <p className="truncate text-[12px] text-gray-500">{meta.subtitle}</p>
+        <h1 className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">{meta.title}</h1>
+        <p className="truncate text-[12px] text-slate-500">{meta.subtitle}</p>
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
         <button
           type="button"
           title={regionTitle}
-          className="hidden sm:flex max-w-[min(240px,36vw)] items-center gap-2 rounded-lg border border-white/[0.08] bg-[#111820] px-3 py-2 text-left text-[12px] text-gray-200 hover:border-white/[0.12] hover:bg-[#141c26]"
+          className="hidden sm:flex max-w-[min(240px,36vw)] items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-[12px] text-slate-700 hover:border-slate-300 hover:bg-slate-50"
         >
           <MapPin className="h-4 w-4 shrink-0 text-cg-accent/90" aria-hidden />
           <span className="min-w-0 truncate font-medium">{regionLabel}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" aria-hidden />
+          <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
         </button>
 
         <button
           type="button"
-          className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/[0.08] bg-[#111820] text-gray-400 hover:text-white"
+          className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-900"
           aria-label={`Notifications, ${alertCount} open`}
         >
           <Bell className="h-[18px] w-[18px]" />
@@ -119,11 +119,11 @@ export default function DashboardTopBar() {
           </span>
         </button>
 
-        <div className="flex items-center gap-2.5 rounded-lg border border-white/[0.08] bg-[#111820] py-1.5 pl-1.5 pr-2">
+        <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white py-1.5 pl-1.5 pr-2">
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-cg-accent/40 to-emerald-900/80 ring-2 ring-cg-accent/25" />
           <div className="hidden sm:block text-left leading-tight max-w-[140px] md:max-w-[200px]">
-            <p className="text-[12px] font-semibold text-white truncate">Admin Officer</p>
-            <p className="text-[10px] text-gray-500 truncate" title={user?.email}>
+            <p className="text-[12px] font-semibold text-slate-900 truncate">Admin Officer</p>
+            <p className="text-[10px] text-slate-500 truncate" title={user?.email}>
               {user?.email || "Government Admin"}
             </p>
           </div>
@@ -135,7 +135,7 @@ export default function DashboardTopBar() {
             logout();
             nav("/login", { replace: true });
           }}
-          className="flex h-10 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#111820] px-3 text-[11px] font-semibold text-gray-400 hover:border-red-500/30 hover:bg-red-950/30 hover:text-red-200"
+          className="flex h-10 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
           title="Sign out"
         >
           <LogOut className="h-4 w-4" />

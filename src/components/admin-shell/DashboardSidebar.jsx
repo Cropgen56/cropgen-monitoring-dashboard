@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -17,6 +17,8 @@ import {
   Settings,
   Leaf,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useAgriPlatform } from "../../context/AgriPlatformContext";
 import { LOCATION_API_ORIGIN } from "../../config/endpoints";
@@ -45,21 +47,22 @@ const NAV = [
 ];
 
 const selectCls =
-  "w-full rounded-lg border border-white/[0.08] bg-[#0d1219] px-2.5 py-2 text-[12px] text-gray-200 outline-none focus:border-cg-accent/50";
+  "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-700 outline-none focus:border-cg-accent/60";
 
 export default function DashboardSidebar() {
   const s = useAgriPlatform();
+  const [quickFiltersOpen, setQuickFiltersOpen] = useState(true);
 
   return (
-    <aside className="custom-scrollbar flex h-screen w-[272px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0d1117]">
-      <div className="border-b border-white/[0.06] px-4 py-5">
+    <aside className="custom-scrollbar flex h-screen w-[272px] shrink-0 flex-col border-r border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-4 py-5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cg-accent/15 text-cg-accent">
             <Leaf className="h-6 w-6" strokeWidth={2} />
           </div>
           <div className="min-w-0">
-            <p className="text-[15px] font-bold tracking-tight text-white">CropGen</p>
-            <p className="text-[10px] leading-tight text-gray-500">
+            <p className="text-[15px] font-bold tracking-tight text-slate-900">CropGen</p>
+            <p className="text-[10px] leading-tight text-slate-500">
               Crop monitoring &amp; administration intelligence
             </p>
           </div>
@@ -78,7 +81,7 @@ export default function DashboardSidebar() {
                 `${navItem} ${
                   isActive
                     ? "bg-cg-accent/15 text-cg-accent shadow-[inset_3px_0_0_0] shadow-cg-accent"
-                    : "text-gray-400 hover:bg-white/[0.04] hover:text-gray-200"
+                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                 }`
               }
             >
@@ -89,9 +92,22 @@ export default function DashboardSidebar() {
         })}
       </nav>
 
-      <div className="border-t border-white/[0.06] p-3 space-y-2.5 bg-[#0a0d12]">
-        <p className="px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">Quick filters</p>
-        <p className="px-1 text-[9px] leading-snug text-gray-600">
+      <div className="border-t border-slate-200 p-3 space-y-2.5 bg-slate-50">
+        <button
+          type="button"
+          onClick={() => setQuickFiltersOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-1 text-left"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">Quick filters</p>
+          {quickFiltersOpen ? (
+            <ChevronUp className="h-4 w-4 text-slate-500" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-slate-500" />
+          )}
+        </button>
+        {quickFiltersOpen && (
+          <div className="custom-scrollbar max-h-[48vh] space-y-2.5 overflow-y-auto pr-1">
+        <p className="px-1 text-[9px] leading-snug text-slate-500">
           Locations:{" "}
           <a
             href={LOCATION_API_ORIGIN}
@@ -103,13 +119,13 @@ export default function DashboardSidebar() {
           </a>
         </p>
         {s.locationApiError && (
-          <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200/95">
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-700">
             {s.locationApiError}
           </p>
         )}
         <div className="space-y-2">
           <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Country</span>
+            <span className="mb-1 block text-[10px] text-slate-500">Country</span>
             <select
               className={selectCls}
               disabled={s.locationApiLoading && s.locationCountries.length === 0}
@@ -128,7 +144,7 @@ export default function DashboardSidebar() {
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">State / UT</span>
+            <span className="mb-1 block text-[10px] text-slate-500">State / UT</span>
             <select
               className={selectCls}
               disabled={s.locationApiLoading && s.locationStates.length === 0}
@@ -152,16 +168,16 @@ export default function DashboardSidebar() {
             </select>
           </label>
           {!s.isMaharashtraContext && s.filterStateCode && (
-            <p className="rounded-md border border-white/[0.08] bg-black/20 px-2 py-2 text-[10px] leading-relaxed text-gray-500">
+            <p className="rounded-md border border-slate-200 bg-white px-2 py-2 text-[10px] leading-relaxed text-slate-500">
               Farm polygons, taluka, and village lists in this demo are scoped to{" "}
-              <strong className="text-gray-400">Maharashtra (MH)</strong>. Select Maharashtra to enable the
+              <strong className="text-slate-700">Maharashtra (MH)</strong>. Select Maharashtra to enable the
               full map.
             </p>
           )}
           {s.isMaharashtraContext && (
             <>
               <label className="block">
-                <span className="mb-1 block text-[10px] text-gray-500">District</span>
+                <span className="mb-1 block text-[10px] text-slate-500">District</span>
                 <select
                   className={selectCls}
                   value={s.district}
@@ -176,7 +192,7 @@ export default function DashboardSidebar() {
                 </select>
               </label>
               <label className="block">
-                <span className="mb-1 block text-[10px] text-gray-500">Taluka</span>
+                <span className="mb-1 block text-[10px] text-slate-500">Taluka</span>
                 <select
                   className={selectCls}
                   value={s.taluka}
@@ -191,7 +207,7 @@ export default function DashboardSidebar() {
                 </select>
               </label>
               <label className="block">
-                <span className="mb-1 block text-[10px] text-gray-500">Village</span>
+                <span className="mb-1 block text-[10px] text-slate-500">Village</span>
                 <select
                   className={selectCls}
                   value={s.village}
@@ -208,14 +224,14 @@ export default function DashboardSidebar() {
             </>
           )}
           <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Season</span>
+            <span className="mb-1 block text-[10px] text-slate-500">Season</span>
             <select className={selectCls} value={s.season} onChange={(e) => s.setSeason(e.target.value)}>
               <option value="Kharif">Kharif {s.year}</option>
               <option value="Rabi">Rabi {s.year}</option>
             </select>
           </label>
           <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Crop</span>
+            <span className="mb-1 block text-[10px] text-slate-500">Crop</span>
             <select className={selectCls} value={s.crop} onChange={(e) => s.setCrop(e.target.value)}>
               <option value="">All crops</option>
               <option value="Soybean">Soybean</option>
@@ -226,10 +242,12 @@ export default function DashboardSidebar() {
         </div>
         <button
           type="button"
-          className="w-full rounded-lg bg-cg-accent py-2.5 text-[12px] font-bold text-[#0c2214] shadow-lg shadow-black/30 hover:brightness-110 active:scale-[0.99]"
+          className="w-full rounded-lg bg-cg-accent py-2.5 text-[12px] font-bold text-[#0c2214] shadow-md shadow-cg-accent/20 hover:brightness-110 active:scale-[0.99]"
         >
           Apply filters
         </button>
+          </div>
+        )}
       </div>
     </aside>
   );
