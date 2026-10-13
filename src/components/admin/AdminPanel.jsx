@@ -88,7 +88,6 @@ export default function AdminPanel({
   season,
   year,
   filteredPlots,
-  villageBoundary,
   maharashtraOutline,
   maharashtraDistrictsOutline = null,
   showMaharashtraOutline = true,
@@ -384,8 +383,6 @@ export default function AdminPanel({
               Farmer mapping
             </p>
             <AgriMap
-              plotData={filteredPlots}
-              villageBoundary={villageBoundary}
               maharashtraOutline={maharashtraOutline}
               maharashtraDistrictsBaseOutline={maharashtraDistrictsOutline}
               selectedMhDistrict={district}

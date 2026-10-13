@@ -34,8 +34,6 @@ const SURVEY_LAYERS = [
 
 export default function CropSurveyPanel({
   district,
-  filteredPlots,
-  villageBoundary,
   maharashtraOutline,
   maharashtraDistrictsOutline = null,
   showMaharashtraOutline = true,
@@ -97,8 +95,6 @@ export default function CropSurveyPanel({
           District map (satellite)
         </p>
         <AgriMap
-          plotData={filteredPlots}
-          villageBoundary={villageBoundary}
           maharashtraOutline={maharashtraOutline}
           maharashtraDistrictsBaseOutline={maharashtraDistrictsOutline}
           selectedMhDistrict={district}
@@ -191,7 +187,7 @@ export default function CropSurveyPanel({
             <span className="font-bold text-cg-accent">{surveyMeta.classificationAccuracyPct}%</span>
           </p>
           <p className="mt-1 text-[10px] text-gray-500">
-            Use the left column to switch crop type, NDVI, and drought layers on the map.
+            Use the Map layers bar above the map to switch crop type, NDVI, and drought layers.
           </p>
         </div>
 

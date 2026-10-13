@@ -1,25 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Map,
-  Users,
-  Satellite,
-  ShieldCheck,
-  HandCoins,
-  Contact2,
-  Umbrella,
-  MessageSquareWarning,
-  FileBarChart,
-  Bell,
-  Zap,
-  UserCog,
-  Settings,
-  Leaf,
-  Sparkles,
-} from "lucide-react";
-import { useAgriPlatform } from "../../context/AgriPlatformContext";
-import { LOCATION_API_ORIGIN } from "../../config/endpoints";
+import { LayoutDashboard, Users, Satellite, Contact2, Leaf } from "lucide-react";
 
 const navItem =
   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors";
@@ -28,28 +9,12 @@ const navIcon = "h-[18px] w-[18px] shrink-0 opacity-90";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/governance", label: "Impact Intelligence", icon: Map },
+  { to: "/survey", label: "Crop Monitoring", icon: Satellite },
   { to: "/admin", label: "Farmer Mapping", icon: Users },
   { to: "/farmers", label: "Farmer registry", icon: Contact2 },
-  { to: "/survey", label: "Crop Monitoring", icon: Satellite },
-  { to: "/verifications", label: "Verifications", icon: ShieldCheck },
-  { to: "/schemes", label: "Schemes & Benefits", icon: HandCoins },
-  { to: "/insurance", label: "Insurance (PMFBY)", icon: Umbrella },
-  { to: "/grievances", label: "Grievance Management", icon: MessageSquareWarning },
-  { to: "/reports", label: "Reports & Analytics", icon: FileBarChart },
-  { to: "/alerts", label: "Alerts & Notifications", icon: Bell },
-  { to: "/actions", label: "Action Center", icon: Zap },
-  { to: "/ai", label: "AI Cluster Insights", icon: Sparkles },
-  { to: "/users", label: "User Management", icon: UserCog },
-  { to: "/settings", label: "System Settings", icon: Settings },
 ];
 
-const selectCls =
-  "w-full rounded-lg border border-white/[0.08] bg-[#0d1219] px-2.5 py-2 text-[12px] text-gray-200 outline-none focus:border-cg-accent/50";
-
 export default function DashboardSidebar() {
-  const s = useAgriPlatform();
-
   return (
     <aside className="custom-scrollbar flex h-screen w-[272px] shrink-0 flex-col border-r border-white/[0.06] bg-[#0d1117]">
       <div className="border-b border-white/[0.06] px-4 py-5">
@@ -88,149 +53,6 @@ export default function DashboardSidebar() {
           );
         })}
       </nav>
-
-      <div className="border-t border-white/[0.06] p-3 space-y-2.5 bg-[#0a0d12]">
-        <p className="px-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gray-500">Quick filters</p>
-        <p className="px-1 text-[9px] leading-snug text-gray-600">
-          Locations:{" "}
-          <a
-            href={LOCATION_API_ORIGIN}
-            target="_blank"
-            rel="noreferrer"
-            className="text-cg-accent/90 underline-offset-2 hover:underline"
-          >
-            Location API
-          </a>
-        </p>
-        {s.locationApiError && (
-          <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-200/95">
-            {s.locationApiError}
-          </p>
-        )}
-        <div className="space-y-2">
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Country</span>
-            <select
-              className={selectCls}
-              disabled={s.locationApiLoading && s.locationCountries.length === 0}
-              value={s.filterCountryCode}
-              onChange={(e) => s.setFilterCountryCode(e.target.value)}
-            >
-              {s.locationCountries.length === 0 ? (
-                <option value={s.filterCountryCode}>{s.filterCountryCode || "Loading…"}</option>
-              ) : (
-                s.locationCountries.map((c) => (
-                  <option key={c.iso2} value={c.iso2}>
-                    {c.name} ({c.iso2})
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">State / UT</span>
-            <select
-              className={selectCls}
-              disabled={s.locationApiLoading && s.locationStates.length === 0}
-              value={s.filterStateCode}
-              onChange={(e) => s.setFilterStateCode(e.target.value)}
-            >
-              {s.locationStates.length === 0 ? (
-                <option value={s.filterStateCode}>
-                  {s.locationApiLoading ? "Loading states…" : "No states for this country"}
-                </option>
-              ) : (
-                <>
-                  <option value="">Select state…</option>
-                  {s.locationStates.map((st) => (
-                    <option key={st.state_code} value={st.state_code}>
-                      {st.name} ({st.state_code})
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-          </label>
-          {!s.isMaharashtraContext && s.filterStateCode && (
-            <p className="rounded-md border border-white/[0.08] bg-black/20 px-2 py-2 text-[10px] leading-relaxed text-gray-500">
-              Farm polygons, taluka, and village lists in this demo are scoped to{" "}
-              <strong className="text-gray-400">Maharashtra (MH)</strong>. Select Maharashtra to enable the
-              full map.
-            </p>
-          )}
-          {s.isMaharashtraContext && (
-            <>
-              <label className="block">
-                <span className="mb-1 block text-[10px] text-gray-500">District</span>
-                <select
-                  className={selectCls}
-                  value={s.district}
-                  onChange={(e) => s.setDistrict(e.target.value)}
-                >
-                  <option value="">All districts — state view</option>
-                  {s.MAHARASHTRA_DISTRICTS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[10px] text-gray-500">Taluka</span>
-                <select
-                  className={selectCls}
-                  value={s.taluka}
-                  onChange={(e) => s.setTaluka(e.target.value)}
-                >
-                  <option value="">All</option>
-                  {s.talukaOptions.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-[10px] text-gray-500">Village</span>
-                <select
-                  className={selectCls}
-                  value={s.village}
-                  onChange={(e) => s.setVillage(e.target.value)}
-                >
-                  <option value="">All</option>
-                  {s.villageOptions.slice(0, 400).map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          )}
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Season</span>
-            <select className={selectCls} value={s.season} onChange={(e) => s.setSeason(e.target.value)}>
-              <option value="Kharif">Kharif {s.year}</option>
-              <option value="Rabi">Rabi {s.year}</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-[10px] text-gray-500">Crop</span>
-            <select className={selectCls} value={s.crop} onChange={(e) => s.setCrop(e.target.value)}>
-              <option value="">All crops</option>
-              <option value="Soybean">Soybean</option>
-              <option value="Banana">Banana</option>
-              <option value="Cotton">Cotton</option>
-            </select>
-          </label>
-        </div>
-        <button
-          type="button"
-          className="w-full rounded-lg bg-cg-accent py-2.5 text-[12px] font-bold text-[#0c2214] shadow-lg shadow-black/30 hover:brightness-110 active:scale-[0.99]"
-        >
-          Apply filters
-        </button>
-      </div>
     </aside>
   );
 }

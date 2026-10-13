@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.git/
+.gitignore
+.vscode/
+.DS_Store
+Dockerfile
+.dockerignore
+# Env files are not baked in — values come from build args (see ../docker-compose.yml)
+.env
+.env.*
+!.env.example
+# Large legacy demo data no longer used by the app
+src/data/*.geojson
+src/data/*.kml

@@ -2,42 +2,36 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Contact2, Plus, Search, Trash2, Download, ChevronDown, ChevronRight } from "lucide-react";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
 import FarmerProfileTabs from "../components/admin-shell/FarmerProfileTabs";
-import { downloadCsv, buildFarmerExportRows } from "../utils/reportExport";
+import { downloadCsv } from "../utils/reportExport";
 import {
   loadManualFarmers,
   addManualFarmer,
   deleteManualFarmer,
   emptyFarmerFormDefaults,
 } from "../utils/farmerRegistryStorage";
-import {
-  getFarmerRegistrySeedRows,
-  filterSeedRowsByDistrict,
-  FARMER_REGISTRY_SEED_COUNT,
-} from "../data/farmerRegistrySeed";
 
 const PAGE_SIZE = 80;
 
-function plotFeaturesToRows(fc) {
-  const feats =
-    fc?.features?.filter(
-      (f) => f?.properties?.layerType !== "district" && f?.geometry,
-    ) || [];
-  return feats.map((f) => {
-    const p = { ...(f.properties || {}) };
-    const plotId = p._id ?? p.id;
-    return {
-      ...p,
-      _source: "map",
-      _plotId: plotId != null ? String(plotId) : null,
-    };
-  });
+function rowKey(r) {
+  return `m:${r._registryId}`;
 }
 
-function rowKey(r) {
-  if (r._registryId) return `m:${r._registryId}`;
-  if (r._registrySeedId) return `s:${r._registrySeedId}`;
-  if (r._plotId) return `p:${r._plotId}`;
-  return `f:${r.farmerId || r.farmerName || Math.random()}`;
+function toExportRow(r) {
+  return {
+    farmer_id: r.farmerId,
+    name: r.farmerName,
+    mobile: r.mobile,
+    village: r.village,
+    taluka: r.taluka,
+    district: r.district,
+    survey_no: r.surveyNo,
+    gat_no: r.gatNo,
+    crop: r.cropType,
+    area_ha: r.area_ha,
+    irrigation: r.irrigationType,
+    sowing_date: r.sowingDate,
+    saved_at: r._savedAt,
+  };
 }
 
 function renderValue(v, depth = 0) {
@@ -121,38 +115,19 @@ export default function FarmersRegistryPage() {
   const [form, setForm] = useState(() => emptyFarmerFormDefaults());
 
   useEffect(() => {
-    setForm((prev) => ({
-      ...prev,
-      district: prev.district || s.district || "",
-      taluka: prev.taluka || (s.talukaOptions?.[0] ?? ""),
-    }));
-  }, [s.district, s.talukaOptions]);
+    setForm((prev) => ({ ...prev, district: prev.district || s.district || "" }));
+  }, [s.district]);
 
-  const mapRows = useMemo(() => plotFeaturesToRows(s.filteredPlots), [s.filteredPlots]);
-
-  const seedRows = useMemo(
-    () => filterSeedRowsByDistrict(getFarmerRegistrySeedRows(), s.district),
-    [s.district],
+  /** Scoped to the district selected on the map, when one is selected. */
+  const scopedRows = useMemo(
+    () => (s.district ? manual.filter((r) => r.district === s.district) : manual),
+    [manual, s.district],
   );
-
-  const allRows = useMemo(() => {
-    const manualNorm = manual.map((p) => ({
-      ...p,
-      _source: "manual",
-      _plotId: p._registryId,
-    }));
-    const seedNorm = seedRows.map((p) => ({
-      ...p,
-      _source: "seed",
-      _plotId: p._id != null ? String(p._id) : p._registrySeedId,
-    }));
-    return [...manualNorm, ...seedNorm, ...mapRows];
-  }, [manual, seedRows, mapRows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return allRows;
-    return allRows.filter((r) =>
+    if (!q) return scopedRows;
+    return scopedRows.filter((r) =>
       [
         r.farmerName,
         r.name,
@@ -162,15 +137,13 @@ export default function FarmersRegistryPage() {
         r.district,
         r.cropType,
         r.surveyNo,
-        r.clusterId,
-        r._plotId,
       ].some((v) => String(v || "").toLowerCase().includes(q)),
     );
-  }, [allRows, query]);
+  }, [scopedRows, query]);
 
   useEffect(() => {
     setPage(0);
-  }, [query, s.district, s.filteredPlots]);
+  }, [query, s.district]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pageCount - 1);
@@ -193,16 +166,7 @@ export default function FarmersRegistryPage() {
 
   const profileForTabs = useMemo(() => {
     if (!selected) return null;
-    const {
-      _source,
-      _plotId,
-      _registryId,
-      _savedAt,
-      _registrySource,
-      _registrySeedId,
-      _registrySeedBatch,
-      ...rest
-    } = selected;
+    const { _registryId, _savedAt, _registrySource, ...rest } = selected;
     return rest;
   }, [selected]);
 
@@ -215,37 +179,24 @@ export default function FarmersRegistryPage() {
         farmerId: form.farmerId.trim() || `FR-MH-${Date.now().toString().slice(-8)}`,
         mobile: form.mobile.trim(),
         aadhaarMasked: form.aadhaarMasked.trim(),
-        preferredLanguage: form.preferredLanguage.trim() || "mr",
+        preferredLanguage: form.preferredLanguage.trim(),
         village: form.village.trim(),
         taluka: form.taluka.trim(),
         district: form.district.trim(),
         surveyNo: form.surveyNo.trim(),
         gatNo: form.gatNo.trim(),
-        area_ha: form.area_ha === "" ? "" : String(form.area_ha),
-        cropType: form.cropType.trim() || "Soybean",
-        irrigationType: form.irrigationType.trim() || "Rainfed",
+        area_ha: String(form.area_ha).trim(),
+        cropType: form.cropType.trim(),
+        irrigationType: form.irrigationType.trim(),
         sowingDate: form.sowingDate.trim(),
-        clusterId: form.clusterId.trim(),
-        name: form.name.trim() || `${form.cropType} · ${form.taluka || "plot"} · manual`,
-        cropHealth: form.cropHealth.trim(),
-        cropHealthPercent: form.cropHealthPercent === "" ? "" : Number(form.cropHealthPercent),
-        governanceImpactScore:
-          form.governanceImpactScore === "" ? undefined : Number(form.governanceImpactScore),
-        governanceImpactLabel: form.governanceImpactLabel.trim(),
-        governanceDiseaseRisk:
-          form.governanceDiseaseRisk === "" ? undefined : Number(form.governanceDiseaseRisk),
-        predictedYieldTonPerAcre:
-          form.predictedYieldTonPerAcre === "" ? undefined : Number(form.predictedYieldTonPerAcre),
-        surveyNdviHealth:
-          form.surveyNdviHealth === "" ? undefined : Number(form.surveyNdviHealth),
         cropLoan: {
           availed: !!form.cropLoanAvailed,
           amountINR: Number.isFinite(loanAmt) ? loanAmt : 0,
         },
         insurance: {
           claimed: !!form.insuranceClaimed,
-          scheme: form.insuranceScheme.trim() || "PMFBY",
-          season: form.insuranceSeason.trim() || "Kharif 2026",
+          scheme: form.insuranceScheme.trim(),
+          season: form.insuranceSeason.trim(),
         },
         schemesMahadbt: form.schemesNote.trim()
           ? [{ name: form.schemesNote.trim(), status: "noted" }]
@@ -263,21 +214,12 @@ export default function FarmersRegistryPage() {
   );
 
   const handleDeleteManual = useCallback(() => {
-    if (!selected || selected._source !== "manual" || !selected._registryId) return;
-    if (!window.confirm("Remove this manually added farmer from the registry?")) return;
+    if (!selected?._registryId) return;
+    if (!window.confirm("Remove this farmer from the registry?")) return;
     const next = deleteManualFarmer(selected._registryId);
     setManual(next);
     setSelectedKey(null);
   }, [selected]);
-
-  const fcForExport = useMemo(() => {
-    const features = filtered.map((r) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [0, 0] },
-      properties: { ...r },
-    }));
-    return { type: "FeatureCollection", features };
-  }, [filtered]);
 
   return (
     <div className="p-5 md:p-6 max-w-[1920px] mx-auto space-y-4">
@@ -288,20 +230,15 @@ export default function FarmersRegistryPage() {
             Farmer registry
           </h1>
           <p className="mt-1 max-w-2xl text-[13px] text-gray-500">
-            <strong className="text-gray-300">{FARMER_REGISTRY_SEED_COUNT.toLocaleString("en-IN")}</strong> demo
-            farmers: crop and district follow the Maharashtra major-crops profile (Vidarbha cotton, Jalgaon banana,
-            etc.), each with a <strong className="text-gray-400">unique name</strong>. Scoped by Quick filters
-            district. Map parcels and manual saves (
-            <span className="text-gray-400">localStorage</span>) merge below the seed list.
+            Farmers registered by your team. Records are saved in this browser until a backend is connected.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-lg border border-white/[0.12] bg-[#111820] px-3 py-2 text-[12px] font-semibold text-gray-200 hover:bg-white/[0.04]"
-            onClick={() =>
-              downloadCsv(`farmer-registry-${s.district || "all"}.csv`, buildFarmerExportRows(fcForExport))
-            }
+            className="inline-flex items-center gap-2 rounded-lg border border-white/[0.12] bg-[#111820] px-3 py-2 text-[12px] font-semibold text-gray-200 hover:bg-white/[0.04] disabled:opacity-40"
+            disabled={!filtered.length}
+            onClick={() => downloadCsv(`farmer-registry-${s.district || "all"}.csv`, filtered.map(toExportRow))}
           >
             <Download className="h-4 w-4" />
             Export CSV
@@ -338,16 +275,7 @@ export default function FarmersRegistryPage() {
               ["area_ha", "Area (ha)", "text", false],
               ["cropType", "Crop", "text", false],
               ["irrigationType", "Irrigation", "text", false],
-              ["sowingDate", "Sowing date", "text", false],
-              ["clusterId", "Cluster ID", "text", false],
-              ["name", "Plot label / map title", "text", false],
-              ["cropHealth", "Crop health label", "text", false],
-              ["cropHealthPercent", "Crop health %", "text", false],
-              ["governanceImpactScore", "Impact score", "text", false],
-              ["governanceImpactLabel", "Impact band", "text", false],
-              ["governanceDiseaseRisk", "Disease risk", "text", false],
-              ["predictedYieldTonPerAcre", "Yield (t/ac)", "text", false],
-              ["surveyNdviHealth", "NDVI", "text", false],
+              ["sowingDate", "Sowing date", "date", false],
               ["insuranceScheme", "Insurance scheme", "text", false],
               ["insuranceSeason", "Insurance season", "text", false],
               ["schemesNote", "Scheme / subsidy note", "text", false],
@@ -425,14 +353,6 @@ export default function FarmersRegistryPage() {
           <span className="tabular-nums text-gray-300">{filtered.length}</span> record
           {filtered.length !== 1 ? "s" : ""}
           {" · "}
-          <span className="tabular-nums text-sky-300/90">{seedRows.length}</span> seed
-          {manual.length ? (
-            <>
-              {" "}
-              · <span className="text-cg-accent/90">{manual.length}</span> manual
-            </>
-          ) : null}
-          {" · "}
           scope: <span className="text-gray-300">{s.district || "All Maharashtra"}</span>
         </p>
       </div>
@@ -447,7 +367,6 @@ export default function FarmersRegistryPage() {
                     <th className="px-3 py-2">Farmer</th>
                     <th className="px-3 py-2">Location</th>
                     <th className="px-3 py-2">Crop</th>
-                    <th className="px-3 py-2">Source</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -463,8 +382,8 @@ export default function FarmersRegistryPage() {
                         onClick={() => setSelectedKey(k)}
                       >
                         <td className="px-3 py-2">
-                          <p className="font-semibold text-gray-100">{r.farmerName || r.name || "—"}</p>
-                          <p className="font-mono text-[10px] text-gray-500">{r.farmerId || r._plotId || "—"}</p>
+                          <p className="font-semibold text-gray-100">{r.farmerName || "—"}</p>
+                          <p className="font-mono text-[10px] text-gray-500">{r.farmerId || "—"}</p>
                         </td>
                         <td className="px-3 py-2 text-gray-400">
                           {r.village || "—"}
@@ -472,19 +391,6 @@ export default function FarmersRegistryPage() {
                           <span className="text-gray-500">{r.taluka || "—"} · {r.district || "—"}</span>
                         </td>
                         <td className="px-3 py-2 text-gray-300">{r.cropType || "—"}</td>
-                        <td className="px-3 py-2">
-                          <span
-                            className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
-                              r._source === "manual"
-                                ? "bg-amber-500/20 text-amber-200"
-                                : r._source === "seed"
-                                  ? "bg-sky-500/20 text-sky-200"
-                                  : "bg-emerald-500/15 text-emerald-200"
-                            }`}
-                          >
-                            {r._source === "manual" ? "Manual" : r._source === "seed" ? "Seed" : "Map"}
-                          </span>
-                        </td>
                       </tr>
                     );
                   })}
@@ -520,24 +426,24 @@ export default function FarmersRegistryPage() {
         <div className="lg:col-span-3 space-y-3">
           {selected && profileForTabs ? (
             <>
-              {selected._source === "manual" && (
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={handleDeleteManual}
-                    className="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/20"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remove manual record
-                  </button>
-                </div>
-              )}
-              <FarmerProfileTabs profile={profileForTabs} district={s.district} />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleDeleteManual}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-[11px] font-semibold text-red-300 hover:bg-red-500/20"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove farmer
+                </button>
+              </div>
+              <FarmerProfileTabs profile={profileForTabs} />
               <AllFieldsPanel data={selected} />
             </>
           ) : (
             <div className="rounded-xl border border-white/[0.08] bg-[#111820] p-8 text-center text-[13px] text-gray-500">
-              Select a row to view full farmer data.
+              {manual.length
+                ? "Select a row to view full farmer data."
+                : "No farmers registered yet. Use “Add farmer” to create the first record."}
             </div>
           )}
         </div>

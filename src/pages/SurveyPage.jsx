@@ -1,72 +1,49 @@
-import React from "react";
+import React, { useMemo } from "react";
+import { Download } from "lucide-react";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
-import CropSurveyPanel from "../components/survey/CropSurveyPanel";
-import DataQualityBanner from "../components/platform/DataQualityBanner";
-import SoilHealth from "../components/SoilHealth";
-import TimeSeriesCharts from "../components/TimeSeriesCharts";
+import { useFieldDelineationContext } from "../context/FieldDelineationContext";
+import MaharashtraMap from "../components/map/MaharashtraMap";
+import { DetectedFieldsTable } from "../components/delineation/DetectionTables";
+import { detectionsInDistrict } from "../utils/delineationStats";
 
+function downloadGeoJson(data, filename) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/geo+json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Crop monitoring workspace: satellite map with field detection, and the detected field list. */
 export default function SurveyPage() {
-  const s = useAgriPlatform();
-  const mapLayer = s.surveyMapLayer;
+  const { district } = useAgriPlatform();
+  const { saved } = useFieldDelineationContext();
+  const detections = useMemo(() => detectionsInDistrict(saved, district), [saved, district]);
+
+  const exportFields = () =>
+    downloadGeoJson(
+      { type: "FeatureCollection", features: detections.flatMap((r) => r.fields.features) },
+      `fields-${district || "maharashtra"}.geojson`,
+    );
 
   return (
     <div className="space-y-4 p-5 md:p-6">
-      <DataQualityBanner mapDataQuality={s.mapDataQuality} />
-
-      {s.isMaharashtraContext && s.washimLoadError && s.district === "Washim" && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {s.washimLoadError}
-        </div>
-      )}
-      {s.isMaharashtraContext && s.jalnaLoadError && s.district === "Jalna" && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {s.jalnaLoadError}
-        </div>
-      )}
-      {s.isMaharashtraContext && s.jalnaLoading && s.district === "Jalna" && !s.jalnaLoadError && (
-        <div className="rounded-lg border border-cg-accent/35 bg-cg-accent/10 px-3 py-2 text-xs text-cg-accent">
-          Loading Jalna banana plots…
-        </div>
-      )}
-
-      <CropSurveyPanel
-        district={s.district}
-        filteredPlots={s.filteredPlots}
-        villageBoundary={s.villageBoundary}
-        maharashtraOutline={s.maharashtraOutline}
-        maharashtraDistrictsOutline={s.maharashtraDistrictsOutline}
-        showMaharashtraOutline={s.isMaharashtraContext}
-        indiaCountryOutline={s.indiaCountryOutline}
-        indiaStatesOutline={s.indiaStatesOutline}
-        indiaSelectedStateCode={s.filterStateCode}
-        showIndiaOutlines={s.isIndiaContext}
-        onIndiaStateSelect={s.handleIndiaStateBoundaryClick}
-        mapLayer={mapLayer}
-        mapRegionFallback={s.mapRegionFallback}
-        selectedPlotId={s.selectedSampleFieldId}
-        onPlotClick={s.handlePlotClick}
-        showValidationPoints={s.showValidation && s.district === "Jalgaon"}
-        yieldCompareData={s.yieldCompareData}
-        historicalYield={s.historicalYield}
-        selectedProperties={s.selectedProperties}
-        isLoading={s.washimLoading || s.jalnaLoading || s.districtOutlineLoading}
-        setSurveyMapLayer={s.setSurveyMapLayer}
-        showValidation={s.showValidation}
-        setShowValidation={s.setShowValidation}
+      <MaharashtraMap heightClass="h-[min(70vh,680px)]" />
+      <DetectedFieldsTable
+        detections={detections}
+        actions={
+          detections.length > 0 && (
+            <button
+              type="button"
+              onClick={exportFields}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.12] bg-black/30 px-3 py-1.5 text-[11px] font-semibold text-gray-200 hover:bg-white/[0.06]"
+            >
+              <Download className="h-3.5 w-3.5" /> GeoJSON
+            </button>
+          )
+        }
       />
-
-      {s.fieldData && (
-        <div className="rounded-lg border border-white/[0.08] bg-[#111820] px-3 py-2 text-center text-[11px] text-gray-400">
-          Charts use the selected field:{" "}
-          <span className="font-semibold text-cg-accent">{s.fieldData.selectionLabel}</span> —{" "}
-          {s.fieldData.selectionSubtitle}
-        </div>
-      )}
-
-      <div className="space-y-4 pt-2">
-        <SoilHealth />
-        <TimeSeriesCharts />
-      </div>
     </div>
   );
 }

@@ -10,12 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "data:mh-villages": "node scripts/fetch-mh-villages.mjs",
-    "data:washim": "node scripts/build-washim-soybean.mjs",
-    "data:jalna": "node scripts/build-jalna-banana.mjs",
-    "data:mh-outline": "node scripts/build-maharashtra-outline.mjs",
-    "data:mh-districts": "node scripts/build-maharashtra-districts-outline.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@mapbox/togeojson": "^0.16.2",

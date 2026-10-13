@@ -1,5 +1,5 @@
 /**
- * Client-side manual farmer records (demo — no backend).
+ * Farmer records entered by users (no backend yet).
  * Persists to localStorage for the Farmer Registry page.
  */
 
@@ -45,30 +45,21 @@ export function emptyFarmerFormDefaults() {
     farmerId: "",
     mobile: "",
     aadhaarMasked: "",
-    preferredLanguage: "mr",
+    preferredLanguage: "",
     village: "",
     taluka: "",
     district: "",
     surveyNo: "",
     gatNo: "",
     area_ha: "",
-    cropType: "Soybean",
-    irrigationType: "Rainfed",
+    cropType: "",
+    irrigationType: "",
     sowingDate: "",
-    clusterId: "",
-    name: "",
-    cropHealth: "Decent",
-    cropHealthPercent: "62",
-    governanceImpactScore: "",
-    governanceImpactLabel: "",
-    governanceDiseaseRisk: "",
-    predictedYieldTonPerAcre: "",
-    surveyNdviHealth: "",
     cropLoanAvailed: false,
     cropLoanAmountINR: "",
     insuranceClaimed: false,
-    insuranceScheme: "PMFBY",
-    insuranceSeason: "Kharif 2026",
+    insuranceScheme: "",
+    insuranceSeason: "",
     schemesNote: "",
     notes: "",
   };

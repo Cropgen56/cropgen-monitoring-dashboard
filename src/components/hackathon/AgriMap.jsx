@@ -38,6 +38,10 @@ import {
   rainfallDeviationStyle,
 } from "../../data/governanceEngine";
 import SatelliteScanLoader from "../ui/SatelliteScanLoader";
+import MapPlaceSearch from "../map/MapPlaceSearch";
+import FieldDelineationLayer from "../delineation/FieldDelineationLayer";
+import FieldDelineationPanel from "../delineation/FieldDelineationPanel";
+import { useFieldDelineationContext } from "../../context/FieldDelineationContext";
 
 const ACRES_PER_HA = 2.471053814671738;
 
@@ -116,7 +120,7 @@ function buildMhDistrictBaseTooltipHtml(feature, selectedDistrict) {
   </div>
   <div style="padding:9px 12px 11px;font-size:11px;line-height:1.45;color:#cbd5e1;">
     <div style="color:#64748b;font-size:10px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Maharashtra · India</div>
-    <span style="color:#e2e8f0;">Click to filter</span> this district in Quick filters. Field polygons load for <strong style="color:#fde68a;">Washim</strong> &amp; <strong style="color:#fde68a;">Jalna</strong> in this demo.
+    <span style="color:#e2e8f0;">Click to focus</span> the dashboard on this district. Field polygons load for <strong style="color:#fde68a;">Washim</strong> &amp; <strong style="color:#fde68a;">Jalna</strong> in this demo.
   </div>
 </div>`;
 }
@@ -266,7 +270,7 @@ function buildDistrictPopupHtml(feature) {
     <div style="font-size:11px;color:#047857;margin-top:4px;font-weight:500;">Maharashtra · <span style="font-variant-numeric:tabular-nums;">IN-MH</span></div>
   </div>
   <div style="padding:12px 14px 14px;background:#fafafa;color:#475569;font-size:11px;">
-    Administrative boundary (LGD / demo). Use <strong style="color:#0f172a;">Quick filters</strong> to align dashboards with this district. Demo plot footprints: <strong>Washim</strong> (soybean), <strong>Jalna</strong> (banana).
+    Administrative boundary (LGD / demo). <strong style="color:#0f172a;">Click the district</strong> on the map to align dashboards with it. Demo plot footprints: <strong>Washim</strong> (soybean), <strong>Jalna</strong> (banana).
   </div>
 </div>`;
 }
@@ -721,7 +725,7 @@ const VILLAGE_OUTLINE_STYLE = {
 
 /**
  * Maharashtra district grid on hybrid satellite: cool neutral borders (readable on forest / soil / urban),
- * amber ring for the district that matches Quick filters — separate from the green state outline.
+ * amber ring for the selected district — separate from the green state outline.
  */
 const MH_DISTRICT_GRID_DEFAULT = {
   fillColor: "#020617",
@@ -831,6 +835,16 @@ export default function AgriMap({
   /** When true (survey mode), bind click popup with crop / NDVI / yield / risk */
   showSurveyPopup = false,
 }) {
+  const { step: delineationStep, pickVillageAt } = useFieldDelineationContext();
+  /** A searched place loads its village boundary, unless a draw / detection is in progress. */
+  const onPlaceSelect = useCallback(
+    (place) => {
+      if (delineationStep === "draw" || delineationStep === "running") return;
+      pickVillageAt(place.lat, place.lng, { thenDraw: false });
+    },
+    [delineationStep, pickVillageAt],
+  );
+
   /** Keeps UI responsive while React recomputes heavy GeoJSON (feature/hackethon-changes pattern). */
   const deferredPlotData = useDeferredValue(plotData);
   const hoverHtmlCacheRef = useRef(new Map());
@@ -1281,6 +1295,10 @@ export default function AgriMap({
           pathRenderer={canvasRenderer}
         />
 
+        <FieldDelineationLayer />
+
+        <MapPlaceSearch onPlaceSelect={onPlaceSelect} />
+
         {showValidationPoints &&
           validationPoints.map((vp) => (
             <CircleMarker
@@ -1332,6 +1350,8 @@ export default function AgriMap({
           <FitBounds bounds={bounds} fitOptions={DEFAULT_FIT_OPTIONS} />
         )}
       </MapContainer>
+
+      <FieldDelineationPanel />
 
       {loaderVisible && <SatelliteScanLoader />}
 

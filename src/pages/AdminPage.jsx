@@ -1,76 +1,56 @@
-import React from "react";
-import { MapPinned } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { Contact2 } from "lucide-react";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
-import AdminPanel from "../components/admin/AdminPanel";
-import DataQualityBanner from "../components/platform/DataQualityBanner";
+import MaharashtraMap from "../components/map/MaharashtraMap";
+import { loadManualFarmers } from "../utils/farmerRegistryStorage";
 
+/** Farmer mapping: satellite map with field detection next to the registered farmers in scope. */
 export default function AdminPage() {
-  const s = useAgriPlatform();
-  const mapLayer = s.adminMapLayerComputed;
+  const { district } = useAgriPlatform();
+  const [farmers] = useState(() => loadManualFarmers());
+  const inScope = useMemo(
+    () => (district ? farmers.filter((f) => f.district === district) : farmers),
+    [farmers, district],
+  );
 
   return (
-    <div className="space-y-4 p-5 md:p-6">
-      <DataQualityBanner mapDataQuality={s.mapDataQuality} />
+    <div className="grid gap-4 p-5 md:p-6 lg:grid-cols-3 lg:items-start">
+      <section className="lg:col-span-2">
+        <MaharashtraMap heightClass="h-[min(70vh,680px)]" />
+      </section>
 
-      {s.isMaharashtraContext && s.washimLoadError && s.district === "Washim" && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {s.washimLoadError}
+      <aside className="rounded-xl border border-white/[0.08] bg-[#111820] shadow-lg">
+        <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-3">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+            <Contact2 className="h-4 w-4 text-cg-accent" />
+            Registered farmers
+          </h3>
+          <span className="text-[11px] text-gray-500">{district || "All Maharashtra"}</span>
         </div>
-      )}
-      {s.isMaharashtraContext && s.jalnaLoadError && s.district === "Jalna" && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {s.jalnaLoadError}
-        </div>
-      )}
-      {s.isMaharashtraContext && s.jalnaLoading && s.district === "Jalna" && !s.jalnaLoadError && (
-        <div className="rounded-lg border border-cg-accent/35 bg-cg-accent/10 px-3 py-2 text-xs text-cg-accent">
-          Loading Jalna banana plots…
-        </div>
-      )}
-
-      <AdminPanel
-        district={s.district}
-        crop={s.crop}
-        season={s.season}
-        year={s.year}
-        filteredPlots={s.filteredPlots}
-        villageBoundary={s.villageBoundary}
-        maharashtraOutline={s.maharashtraOutline}
-        maharashtraDistrictsOutline={s.maharashtraDistrictsOutline}
-        showMaharashtraOutline={s.isMaharashtraContext}
-        indiaCountryOutline={s.indiaCountryOutline}
-        indiaStatesOutline={s.indiaStatesOutline}
-        indiaSelectedStateCode={s.filterStateCode}
-        showIndiaOutlines={s.isIndiaContext}
-        onIndiaStateSelect={s.handleIndiaStateBoundaryClick}
-        mapLayer={mapLayer}
-        mapRegionFallback={s.mapRegionFallback}
-        selectedPlotId={s.selectedSampleFieldId}
-        onPlotClick={s.handlePlotClick}
-        selectedProperties={s.selectedProperties}
-        selectSampleField={s.selectSampleField}
-        loadedFieldCount={s.loadedFieldCount}
-        isLoading={s.washimLoading || s.jalnaLoading || s.districtOutlineLoading}
-        governanceRollup={s.governanceRollup}
-        governanceInsights={s.governanceInsights}
-        adminMapLayer={s.adminMapLayer}
-        setAdminMapLayer={s.setAdminMapLayer}
-        showVillageBoundary={s.showVillageBoundary}
-        setShowVillageBoundary={s.setShowVillageBoundary}
-      />
-
-      {s.fieldData && (
-        <div className="flex flex-wrap items-center justify-center gap-2 rounded-xl border border-cg-accent/20 bg-[#0c1812] px-4 py-2.5 text-[11px] text-gray-300 shadow-inner shadow-black/20">
-          <span className="inline-flex items-center gap-1.5 text-cg-accent/90">
-            <MapPinned className="h-3.5 w-3.5" aria-hidden />
-            <span className="font-semibold uppercase tracking-wide text-[10px]">Selection</span>
-          </span>
-          <span className="h-3 w-px bg-white/10" aria-hidden />
-          <span className="font-semibold text-white">{s.fieldData.selectionLabel}</span>
-          <span className="text-gray-500">·</span>
-          <span className="tabular-nums text-gray-400">{s.fieldData.selectionSubtitle}</span>
-        </div>
-      )}
+        {inScope.length === 0 ? (
+          <p className="px-4 py-8 text-center text-[12px] text-gray-500">
+            No farmers registered{district ? ` in ${district}` : ""} yet.{" "}
+            <Link to="/farmers" className="font-semibold text-cg-accent hover:underline">
+              Add farmers in the registry
+            </Link>
+            .
+          </p>
+        ) : (
+          <ul className="custom-scrollbar max-h-[min(64vh,620px)] divide-y divide-white/[0.05] overflow-y-auto">
+            {inScope.map((f) => (
+              <li key={f._registryId} className="px-4 py-2.5 text-[11px]">
+                <p className="font-semibold text-gray-100">{f.farmerName}</p>
+                <p className="text-gray-500">
+                  {[f.village, f.taluka, f.district].filter(Boolean).join(" · ") || "No location"}
+                  {f.cropType && <> · {f.cropType}</>}
+                  {f.area_ha && <> · {f.area_ha} ha</>}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </aside>
     </div>
   );
 }
