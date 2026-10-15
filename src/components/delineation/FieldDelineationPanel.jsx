@@ -12,12 +12,7 @@ import {
 import { MAX_DELINEATION_AREA_KM2 } from "../../hooks/useFieldDelineation";
 import { useFieldDelineationContext } from "../../context/FieldDelineationContext";
 import { useAgriPlatform } from "../../context/AgriPlatformContext";
-import {
-  autocompletePlaces,
-  getPlace,
-  isPlacesSearchEnabled,
-  newPlacesSessionToken,
-} from "../../api/placesApi";
+import { toOutlineDistrict } from "../../config/districtNames";
 
 const ACRES_PER_HA = 2.471053814671738;
 
@@ -27,25 +22,6 @@ const STEP_HINTS = {
   draw: `Click points inside the blue village outline; click the first point to finish. Max ${MAX_DELINEATION_AREA_KM2} km².`,
 };
 
-const DISTRICT_NAME_ALIASES = {
-  ahmednagar: "ahilyanagar",
-  aurangabad: "chhatrapati sambhajinagar",
-};
-
-function normalizeDistrict(name) {
-  const normalized = String(name || "").trim().toLowerCase();
-  return DISTRICT_NAME_ALIASES[normalized] || normalized;
-}
-
-function normalizeVillageList(villages) {
-  if (!Array.isArray(villages)) return [];
-  return [...new Set(
-    villages
-      .filter((name) => typeof name === "string")
-      .map((name) => name.trim())
-      .filter((name) => name && !/^list of villages in\b/i.test(name)),
-  )].sort((a, b) => a.localeCompare(b));
-}
 
 function ElapsedSeconds({ since }) {
   const [now, setNow] = useState(() => Date.now());
@@ -85,136 +61,16 @@ export default function FieldDelineationPanel({ placement = "map" }) {
   const { district } = useAgriPlatform();
   const { step, village, area, fields, error, runStartedAt, progress, saved, savedFields } = d;
   const [collapsed, setCollapsed] = useState(false);
-  const [villageOptions, setVillageOptions] = useState([]);
-  const [villageOptionsLoading, setVillageOptionsLoading] = useState(false);
-  const [villageOptionsError, setVillageOptionsError] = useState("");
-  const [selectedVillageName, setSelectedVillageName] = useState("");
-  const [resolvingVillage, setResolvingVillage] = useState(false);
-  const [selectionError, setSelectionError] = useState("");
-  const selectionAbortRef = useRef(null);
   const previousDistrictRef = useRef(district);
   const v = village?.properties || {};
 
+  // Leaving the district drops the selected village — unless the district changed
+  // *because* a village there was picked (top-bar picker or map click).
   useEffect(() => {
     if (previousDistrictRef.current === district) return;
     previousDistrictRef.current = district;
-    selectionAbortRef.current?.abort();
-    setResolvingVillage(false);
-    setSelectedVillageName("");
-    setSelectionError("");
-    resetDelineation();
-  }, [district, resetDelineation]);
-
-  useEffect(() => {
-    if (!district) {
-      setVillageOptions([]);
-      setVillageOptionsLoading(false);
-      setVillageOptionsError("");
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    setVillageOptions([]);
-    setVillageOptionsLoading(true);
-    setVillageOptionsError("");
-    fetch("/data/mh-villages-by-district.json", { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Village list: HTTP ${response.status}`);
-        return response.json();
-      })
-      .then((districtVillages) => {
-        if (!Array.isArray(districtVillages?.[district])) {
-          throw new Error(`No village list is available for ${district}.`);
-        }
-        if (!controller.signal.aborted) {
-          setVillageOptions(normalizeVillageList(districtVillages[district]));
-        }
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setVillageOptionsError(e.message || "Could not load villages.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setVillageOptionsLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [district]);
-
-  useEffect(() => {
-    const selected = village?.properties;
-    if (
-      selected?.name &&
-      normalizeDistrict(selected.district) === normalizeDistrict(district) &&
-      villageOptions.includes(selected.name)
-    ) {
-      setSelectedVillageName(selected.name);
-    }
-  }, [district, village, villageOptions]);
-
-  useEffect(
-    () => () => {
-      selectionAbortRef.current?.abort();
-    },
-    [],
-  );
-
-  const selectVillage = async (villageName) => {
-    selectionAbortRef.current?.abort();
-    setSelectedVillageName(villageName);
-    setSelectionError("");
-    d.reset();
-    if (!villageName) return;
-
-    if (!isPlacesSearchEnabled) {
-      setSelectedVillageName("");
-      setSelectionError("Village selection needs a Google Places API key. Configure VITE_GOOGLE_MAPS_API_KEY.");
-      return;
-    }
-
-    const controller = new AbortController();
-    selectionAbortRef.current = controller;
-    setResolvingVillage(true);
-    try {
-      const sessionToken = newPlacesSessionToken();
-      const matches = await autocompletePlaces(
-        `${villageName}, ${district}, Maharashtra, India`,
-        { sessionToken, signal: controller.signal },
-      );
-      if (controller.signal.aborted) return;
-      if (!matches.length) throw new Error(`Could not find ${villageName} in ${district}.`);
-
-      const place = await getPlace(matches[0].placeId, {
-        sessionToken,
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-      if (normalizeDistrict(place.district) !== normalizeDistrict(district)) {
-        throw new Error(
-          `The place search resolved to ${place.district || "an unverified district"}, not ${district}.`,
-        );
-      }
-
-      const feature = await d.pickVillageAt(place.lat, place.lng, { thenDraw: false });
-      if (controller.signal.aborted) return;
-      if (
-        feature?.properties?.district &&
-        normalizeDistrict(feature.properties.district) !== normalizeDistrict(district)
-      ) {
-        d.reset();
-        throw new Error(
-          `The village boundary belongs to ${feature.properties.district}, not ${district}.`,
-        );
-      }
-      if (!feature) setSelectedVillageName("");
-    } catch (e) {
-      if (!controller.signal.aborted) {
-        setSelectedVillageName("");
-        setSelectionError(e.message || "Could not resolve the selected village.");
-      }
-    } finally {
-      if (!controller.signal.aborted) setResolvingVillage(false);
-    }
-  };
+    if (village && toOutlineDistrict(village.properties?.district) !== district) resetDelineation();
+  }, [district, village, resetDelineation]);
 
   const lastRun = useMemo(() => {
     const feats = fields?.features || [];
@@ -251,55 +107,9 @@ export default function FieldDelineationPanel({ placement = "map" }) {
 
       {!collapsed && (
         <div className="custom-scrollbar max-h-[min(48vh,420px)] space-y-2.5 overflow-y-auto border-t border-white/10 px-3 pb-3 pt-2.5">
-          <label className="block space-y-1.5 text-[11px] text-gray-400">
-            <span>Village</span>
-            <select
-              value={selectedVillageName}
-              onChange={(event) => selectVillage(event.target.value)}
-              disabled={!district || villageOptionsLoading || resolvingVillage}
-              className="w-full rounded-md border border-white/10 bg-[#071008] px-2.5 py-2 text-[11px] text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="">
-                {!district
-                  ? "Select a district on the map first"
-                  : villageOptionsLoading
-                    ? "Loading villages…"
-                    : "Choose a village"}
-              </option>
-              {villageOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {!district && (
-            <p className="text-[11px] text-gray-400">Click a district on the map to load its village list.</p>
-          )}
-          {district && villageOptionsLoading && (
-            <p className="flex items-center gap-1.5 text-[11px] text-gray-400">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Loading villages for {district}…
-            </p>
-          )}
-          {district && !villageOptionsLoading && !villageOptionsError && villageOptions.length === 0 && (
-            <p className="text-[11px] text-gray-400">No village names are listed for {district}.</p>
-          )}
-          {resolvingVillage && (
-            <p className="flex items-center gap-1.5 text-[11px] text-gray-400">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              Resolving village location and boundary…
-            </p>
-          )}
-          {villageOptionsError && (
-            <p className="rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-100">
-              {villageOptionsError}
-            </p>
-          )}
-          {selectionError && (
-            <p className="rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-100">
-              {selectionError}
+          {!village && step !== "loadingVillage" && (
+            <p className="text-[11px] text-gray-400">
+              Choose a district, taluka and village in the top bar, or click a village on the map.
             </p>
           )}
 
@@ -307,7 +117,7 @@ export default function FieldDelineationPanel({ placement = "map" }) {
             <div className="rounded-md bg-black/30 px-2.5 py-1.5 text-[11px]">
               <span className="font-semibold text-sky-300">{v.name || "Village"}</span>
               {v.taluka && <> · {v.taluka}</>}
-              {v.district && <> · {v.district}</>}
+              {v.district && <> · {toOutlineDistrict(v.district)}</>}
               <span className="block text-[10px] text-gray-500">Village area: {villageKm2.toFixed(2)} km²</span>
               {area?.properties?.area_km2 != null && (
                 <span className="block text-[10px] text-gray-500">
@@ -393,13 +203,7 @@ export default function FieldDelineationPanel({ placement = "map" }) {
               <button
                 type="button"
                 className={`${secondaryBtn} inline-flex items-center gap-1`}
-                onClick={() => {
-                  selectionAbortRef.current?.abort();
-                  setResolvingVillage(false);
-                  setSelectedVillageName("");
-                  setSelectionError("");
-                  d.reset();
-                }}
+                onClick={d.reset}
               >
                 <X className="h-3 w-3" />
                 {step === "running" ? "Cancel" : "Close"}

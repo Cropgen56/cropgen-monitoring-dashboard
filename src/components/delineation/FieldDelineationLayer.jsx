@@ -10,8 +10,10 @@ import {
   fieldPredictionForId,
 } from "../../utils/cropClassificationColors";
 import { cropIndexFeatureKey } from "../../utils/cropIndexImages";
+import { toOutlineDistrict } from "../../config/districtNames";
 
 const ACRES_PER_HA = 2.471053814671738;
+const EMPTY_INDEX_MAP = new Map();
 
 const VILLAGE_STYLE = { fill: false, color: "#60a5fa", weight: 2.5, dashArray: "6 6", opacity: 0.95 };
 const AREA_STYLE = { fill: false, color: "#ffffff", weight: 1.5, dashArray: "4 4", opacity: 0.8 };
@@ -64,11 +66,87 @@ function fieldStyle(feature, fieldClassifications, classificationDetectionId) {
   };
 }
 
-function fieldHoverCard(feature, prediction) {
+/** Health / change colouring from the village analysis: filled polygons, light outline. */
+function applyAnalysisColor(style, color) {
+  return color ? { ...style, fillColor: color, fillOpacity: 0.78, color: "#f8fafc", weight: 1.1, opacity: 0.85 } : style;
+}
+
+/** Village-analysis section of the hover card (Crop Monitoring). */
+function insightSection(insight) {
+  if (!insight) return "";
+  const row = (label, value, color) => `
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:10px;">
+            <span style="color:#64748b;">${escapeHtml(label)}</span>
+            <span style="display:flex;align-items:center;gap:5px;color:#f8fafc;font-weight:650;">${color ? `<span style="width:8px;height:8px;border-radius:2px;background:${color};"></span>` : ""}${escapeHtml(value)}</span>
+          </div>`;
+  const fmt = (v) => (Number.isFinite(v) ? v.toFixed(2) : "—");
+  const rows = [
+    insight.health && row("Health", `${insight.health.label} · score ${insight.score}`, insight.health.color),
+    Number.isFinite(insight.ndvi) && row("Mean NDVI", fmt(insight.ndvi)),
+    Number.isFinite(insight.changePct) &&
+      row("Change", `${insight.changePct > 0 ? "+" : ""}${insight.changePct.toFixed(0)}% (from ${fmt(insight.ndviPrev)})`, insight.change?.color),
+    Number.isFinite(insight.ndmi) && row("Mean NDMI (moisture)", fmt(insight.ndmi)),
+  ].filter(Boolean).join("");
+  const alerts = (insight.alerts || [])
+    .map((a) => `<div style="margin-top:4px;padding:4px 7px;border-radius:6px;background:${a.severity === "high" ? "rgba(239,68,68,.16)" : "rgba(245,158,11,.14)"};color:${a.severity === "high" ? "#fca5a5" : "#fcd34d"};font-size:10px;font-weight:600;">⚠ ${escapeHtml(a.type)} · ${escapeHtml(a.detail)}</div>`)
+    .join("");
+  return `
+      <div style="margin:0 12px 10px;border:1px solid rgba(148,163,184,.18);border-radius:10px;background:rgba(15,23,42,.62);padding:9px 10px;display:grid;gap:4px;">
+        <div style="color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Village analysis</div>
+        ${rows}${alerts}
+      </div>`;
+}
+
+function formatPercent(value) {
+  return value > 0 && value < 1 ? "<1%" : `${Math.round(value)}%`;
+}
+
+/** Index section in the web app's style: index value class ("status") plus the class mix. */
+function indexSection(indexResult) {
+  if (!indexResult) return "";
+  const indexName = escapeHtml(indexResult.index_name || "Index");
+  const classes = (Array.isArray(indexResult.legend) ? indexResult.legend : [])
+    .map((entry) => ({ ...entry, percent: Number(entry.percent), hectares: Number(entry.hectares) }))
+    .filter((entry) => entry.label && Number.isFinite(entry.percent) && entry.percent > 0)
+    .sort((a, b) => b.percent - a.percent);
+  const dominant = classes[0];
+  const date = indexResult.date
+    ? new Date(`${indexResult.date}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+    : "";
+  const bar = classes
+    .map((entry) => `<span style="width:${entry.percent}%;background:${escapeHtml(entry.color || "#64748b")};"></span>`)
+    .join("");
+  return `
+      <div style="margin:0 12px 10px;border:1px solid rgba(132,204,22,.22);border-radius:10px;background:rgba(15,23,42,.62);padding:9px 10px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+          <span style="color:#bef264;font-size:10px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;">${indexName}</span>
+          <span style="color:#94a3b8;font-size:9px;">${escapeHtml(date)}</span>
+        </div>
+        ${dominant ? `
+        <div style="display:flex;justify-content:space-between;gap:10px;margin-top:5px;font-size:10px;">
+          <span style="color:#64748b;">Status</span>
+          <span style="display:flex;align-items:center;gap:5px;color:#f8fafc;font-weight:650;">
+            <span style="width:8px;height:8px;border-radius:2px;background:${escapeHtml(dominant.color || "#64748b")};"></span>
+            ${escapeHtml(dominant.label)} · ${formatPercent(dominant.percent)}
+          </span>
+        </div>
+        <div style="display:flex;height:6px;margin-top:7px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.08);">${bar}</div>
+        <div style="display:grid;gap:3px;margin-top:6px;">
+          ${classes.slice(0, 4).map((entry) => `
+          <div style="display:flex;align-items:center;gap:5px;font-size:9px;">
+            <span style="width:7px;height:7px;flex:none;border-radius:2px;background:${escapeHtml(entry.color || "#64748b")};"></span>
+            <span style="min-width:0;flex:1;overflow:hidden;color:#d1d5db;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(entry.label)}</span>
+            <span style="color:#94a3b8;font-variant-numeric:tabular-nums;">${Number.isFinite(entry.hectares) ? `${entry.hectares.toFixed(2)} ha · ` : ""}${formatPercent(entry.percent)}</span>
+          </div>`).join("")}
+        </div>` : `<div style="margin-top:5px;color:#94a3b8;font-size:10px;">No index values for this field.</div>`}
+      </div>`;
+}
+
+function fieldHoverCard(feature, prediction, indexResult = null, insight = null) {
   const p = feature.properties || {};
   const name = escapeHtml(p.field_id != null ? `Farm / Field ${p.field_id}` : "Farm boundary");
   const village = escapeHtml(p.village || "Selected village");
-  const location = [p.taluka, p.district].filter(Boolean).map(escapeHtml).join(" · ");
+  const location = [p.taluka, toOutlineDistrict(p.district)].filter(Boolean).map(escapeHtml).join(" · ");
   const areaHa = Number(p.area_ha);
   const perimeter = Number(p.perimeter_m);
   const area = Number.isFinite(areaHa) && areaHa > 0 ? areaHa : null;
@@ -109,6 +187,23 @@ function fieldHoverCard(feature, prediction) {
     p.cropHealthPercent != null && ["Crop health", `${p.cropHealthPercent}%`],
     confidenceText && ["Detection confidence", confidenceText],
   ].filter(Boolean);
+  const badge = escapeHtml(
+    insight?.severity
+      ? `Alert · ${insight.severity}`
+      : prediction?.best_crop
+        ? "Classified"
+        : indexResult
+          ? indexResult.index_name || "Index"
+          : "Detected",
+  );
+  const footer = [
+    "AI-detected farm boundary",
+    prediction?.best_crop && "crop classified",
+    indexResult && `${indexResult.index_name || "index"} calculated`,
+    "Click for details",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const candidates = cropCandidates(prediction);
   const scoreTotal = candidates.reduce((sum, candidate) => sum + candidate.score, 0);
   let scoreStart = 0;
@@ -140,7 +235,7 @@ function fieldHoverCard(feature, prediction) {
       <div style="padding:12px 14px 11px;background:linear-gradient(110deg,rgba(20,184,166,.18),rgba(14,165,233,.12));border-bottom:1px solid rgba(148,163,184,.16);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div style="min-width:0;font-size:13px;font-weight:750;letter-spacing:.01em;color:#f8fafc;">${name}</div>
-          <span style="flex:none;border:1px solid rgba(45,212,191,.25);border-radius:999px;background:rgba(13,148,136,.16);padding:3px 7px;color:#5eead4;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Detected</span>
+          <span style="flex:none;border:1px solid rgba(45,212,191,.25);border-radius:999px;background:rgba(13,148,136,.16);padding:3px 7px;color:#5eead4;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">${badge}</span>
         </div>
         <div style="margin-top:4px;color:#94a3b8;font-size:10px;">${village}${location ? ` · ${location}` : ""}</div>
       </div>
@@ -156,6 +251,8 @@ function fieldHoverCard(feature, prediction) {
           <div style="margin-top:1px;color:#64748b;font-size:10px;">Mapped boundary</div>
         </div>
       </div>
+      ${insightSection(insight)}
+      ${indexSection(indexResult)}
       ${details.length ? `
       <div style="display:grid;gap:5px;padding:3px 14px 11px;">
         ${details.map(([label, value]) => `
@@ -191,8 +288,27 @@ function fieldHoverCard(feature, prediction) {
           <polyline points="${ndviPoints}" fill="none" stroke="#a3b66b" stroke-width="2" vector-effect="non-scaling-stroke"/>
         </svg>
       </div>` : ""}
-      <div style="padding:7px 14px;border-top:1px solid rgba(148,163,184,.12);color:#64748b;font-size:9px;letter-spacing:.02em;">AI-detected farm boundary · Hover a polygon to inspect</div>
+      <div style="padding:7px 14px;border-top:1px solid rgba(148,163,184,.12);color:#64748b;font-size:9px;letter-spacing:.02em;white-space:normal;">${footer}</div>
     </div>`;
+}
+
+/**
+ * The map clips overflowing content and Leaflet's "auto" direction only flips left/right,
+ * so a tall card near the bottom edge was cut off. Open it away from the nearest edge.
+ */
+function placeTooltip(layer, event) {
+  const tooltip = layer.getTooltip?.();
+  const map = layer._map;
+  const point = event?.containerPoint;
+  if (!tooltip || !map || !point) return;
+  const size = map.getSize();
+  const SIDE_MARGIN = 150;
+  let direction;
+  if (point.x < SIDE_MARGIN) direction = "right";
+  else if (point.x > size.x - SIDE_MARGIN) direction = "left";
+  else direction = point.y > size.y / 2 ? "top" : "bottom";
+  tooltip.options.direction = direction;
+  tooltip.options.offset = { top: [0, -10], bottom: [0, 10], left: [-10, 0], right: [10, 0] }[direction];
 }
 
 function bindFieldTooltip(
@@ -202,9 +318,12 @@ function bindFieldTooltip(
   classificationDetectionId,
   selectedFieldKey,
   onFieldSelect,
-  hasCropIndexImage,
+  indexResult,
   showFieldFills,
+  analysisColor,
+  insight,
 ) {
+  const hasCropIndexImage = Boolean(indexResult);
   const id = String(feature.properties?.field_id ?? "");
   const detectionId = String(feature.properties?.detectionId ?? "");
   const fieldKey = `${detectionId}:${id}`;
@@ -214,14 +333,15 @@ function bindFieldTooltip(
   const prediction = belongsToClassifiedRun
     ? fieldPredictionForId(fieldClassifications, feature.properties?.field_id)
     : null;
-  const baseStyle = fieldStyle(feature, fieldClassifications, classificationDetectionId);
+  let baseStyle = fieldStyle(feature, fieldClassifications, classificationDetectionId);
   if (!showFieldFills || hasCropIndexImage) baseStyle.fillOpacity = 0;
+  baseStyle = applyAnalysisColor(baseStyle, analysisColor);
   if (fieldKey === selectedFieldKey) {
     baseStyle.color = "#fef08a";
     baseStyle.weight = 3.2;
-    baseStyle.fillOpacity = showFieldFills && !hasCropIndexImage ? 0.68 : 0;
+    if (!analysisColor) baseStyle.fillOpacity = showFieldFills && !hasCropIndexImage ? 0.68 : 0;
   }
-  layer.bindTooltip(fieldHoverCard(feature, prediction), {
+  layer.bindTooltip(fieldHoverCard(feature, prediction, indexResult, insight), {
     sticky: true,
     direction: "auto",
     opacity: 1,
@@ -229,12 +349,13 @@ function bindFieldTooltip(
     offset: [0, -8],
   });
   layer.on({
-    mouseover() {
+    mouseover(event) {
+      placeTooltip(layer, event);
       layer.setStyle({
         ...baseStyle,
         color: "#fef08a",
         weight: 3,
-        fillOpacity: showFieldFills && !hasCropIndexImage ? 0.66 : 0,
+        fillOpacity: analysisColor ? 0.92 : showFieldFills && !hasCropIndexImage ? 0.66 : 0,
       });
       layer.bringToFront?.();
     },
@@ -259,18 +380,22 @@ export default function FieldDelineationLayer({
   classificationDetectionId = "",
   selectedFieldKey = "",
   onFieldSelect,
-  cropIndexFieldIds = [],
+  /** Map of field key → crop index result (Crop Monitoring); adds the index section to hover cards. */
+  cropIndexByField = EMPTY_INDEX_MAP,
   showFieldFills = true,
+  /** Share the map's canvas renderer so field and district hit-testing don't block each other. */
+  renderer,
+  /** Map of field key → fill colour (village analysis health / change modes). */
+  fieldColorByKey = EMPTY_INDEX_MAP,
+  /** Map of field key → village-analysis farm record; adds an analysis section to hover cards. */
+  fieldInsightsByKey = EMPTY_INDEX_MAP,
 }) {
   const map = useMap();
   const { step, village, area, fields, savedFields, saved, drawSession, pickVillageAt, submitArea } =
     useFieldDelineationContext();
   /** Whole-village runs return thousands of polygons; canvas keeps panning smooth. */
-  const fieldsRenderer = useMemo(() => L.canvas({ padding: 0.5 }), []);
-  const cropIndexFieldIdSet = useMemo(
-    () => new Set(cropIndexFieldIds.map(String)),
-    [cropIndexFieldIds],
-  );
+  const ownRenderer = useMemo(() => L.canvas({ padding: 0.5 }), []);
+  const fieldsRenderer = renderer || ownRenderer;
 
   useMapEvents({
     click(e) {
@@ -315,13 +440,20 @@ export default function FieldDelineationLayer({
   }, [map, step, drawSession, submitArea]);
 
   // react-leaflet <GeoJSON> ignores `data` changes, so key each layer by its content.
-  const villageKey = village?.properties?.census_code ?? village?.properties?.name;
+  const villageKey = `${village?.properties?.census_code ?? ""}-${village?.properties?.name ?? ""}`;
   const classificationKey = Object.entries(fieldClassifications)
     .map(([fieldId, prediction]) =>
       `${fieldId}:${prediction.best_crop}:${prediction.yield_prediction?.estimated_yield_tonnes ?? ""}:${prediction.yield_prediction?.yield_deficit_pct ?? ""}:${prediction.yield_prediction?.damage_category ?? ""}`,
     )
     .join("|");
-  const cropIndexKey = [...cropIndexFieldIdSet].sort().join("|");
+  const analysisKey = useMemo(
+    () => `${fieldColorByKey.size}:${[...fieldColorByKey.values()].join("")}:${fieldInsightsByKey.size}`,
+    [fieldColorByKey, fieldInsightsByKey],
+  );
+  const cropIndexKey = [...cropIndexByField]
+    .map(([key, result]) => `${key}:${result?.index_name ?? ""}:${result?.date ?? ""}`)
+    .sort()
+    .join("|");
   return (
     <>
       {village && (
@@ -337,19 +469,21 @@ export default function FieldDelineationLayer({
       )}
       {savedFields.features.length > 0 && (
         <GeoJSON
-          key={`dl-fields-${saved.map((r) => r.id).join(",")}-${classificationDetectionId}-${classificationKey}-${selectedFieldKey}-${cropIndexKey}`}
+          key={`dl-fields-${saved.map((r) => r.id).join(",")}-${classificationDetectionId}-${classificationKey}-${selectedFieldKey}-${cropIndexKey}-${analysisKey}`}
           data={savedFields}
           style={(feature) => {
-            const style = fieldStyle(feature, fieldClassifications, classificationDetectionId);
-            const hasCropIndexImage = cropIndexFieldIdSet.has(cropIndexFeatureKey(feature));
+            let style = fieldStyle(feature, fieldClassifications, classificationDetectionId);
+            const hasCropIndexImage = cropIndexByField.has(cropIndexFeatureKey(feature));
             if (!showFieldFills || hasCropIndexImage) style.fillOpacity = 0;
+            const analysisColor = fieldColorByKey.get(cropIndexFeatureKey(feature));
+            style = applyAnalysisColor(style, analysisColor);
             const key = `${String(feature.properties?.detectionId ?? "")}:${String(feature.properties?.field_id ?? "")}`;
             return key === selectedFieldKey
               ? {
                   ...style,
                   color: "#fef08a",
                   weight: 3.2,
-                  fillOpacity: showFieldFills && !hasCropIndexImage ? 0.68 : 0,
+                  fillOpacity: analysisColor ? style.fillOpacity : showFieldFills && !hasCropIndexImage ? 0.68 : 0,
                 }
               : style;
           }}
@@ -361,8 +495,10 @@ export default function FieldDelineationLayer({
               classificationDetectionId,
               selectedFieldKey,
               onFieldSelect,
-              cropIndexFieldIdSet.has(cropIndexFeatureKey(feature)),
+              cropIndexByField.get(cropIndexFeatureKey(feature)) || null,
               showFieldFills,
+              fieldColorByKey.get(cropIndexFeatureKey(feature)),
+              fieldInsightsByKey.get(cropIndexFeatureKey(feature)) || null,
             )
           }
           renderer={fieldsRenderer}

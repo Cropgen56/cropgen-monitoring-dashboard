@@ -1,4 +1,6 @@
 import React, { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { ScanLine } from "lucide-react";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
 import { useFieldDelineationContext } from "../context/FieldDelineationContext";
 import MaharashtraMap from "../components/map/MaharashtraMap";
@@ -15,22 +17,17 @@ function KpiCard({ label, value, sub }) {
   );
 }
 
-/** Overview built only from live field-delineation results. */
+/** Read-only overview of field-delineation results; detection itself lives on the Boundary Delineation page. */
 export default function DashboardOverviewPage() {
   const { district } = useAgriPlatform();
-  const { saved, removeSaved } = useFieldDelineationContext();
+  const { saved } = useFieldDelineationContext();
 
   const detections = useMemo(() => detectionsInDistrict(saved, district), [saved, district]);
   const stats = useMemo(() => summarizeDetections(detections), [detections]);
   const scope = district ? `${district} district` : "All Maharashtra";
 
   return (
-    <div className="p-5 md:p-6 space-y-5 max-w-[1920px] mx-auto">
-      <p className="-mt-1 text-[11px] leading-relaxed text-gray-500">
-        Figures come from AI field detection runs ({scope}). Click a district on the map to focus it, or search a
-        place to start a detection.
-      </p>
-
+    <div className="p-3 sm:p-5 md:p-6 space-y-5 max-w-[1920px] mx-auto">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard label="Villages mapped" value={stats.villages} sub={scope} />
         <KpiCard label="Fields detected" value={stats.fields.toLocaleString("en-IN")} />
@@ -43,13 +40,22 @@ export default function DashboardOverviewPage() {
       </div>
 
       <section className="rounded-xl border border-white/[0.08] bg-[#111820] p-3 shadow-lg">
-        <h3 className="mb-2 px-1 text-[12px] font-bold uppercase tracking-[0.12em] text-gray-400">
-          Field boundary map
-        </h3>
-        <MaharashtraMap />
+        <div className="mb-2 flex items-center justify-between gap-3 px-1">
+          <h3 className="text-[12px] font-bold uppercase tracking-[0.12em] text-gray-400">
+            Field boundary map <span className="font-medium normal-case tracking-normal text-gray-500">· {scope}</span>
+          </h3>
+          <Link
+            to="/boundary-delineation"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-cg-accent/30 bg-cg-accent/10 px-2.5 py-1.5 text-[11px] font-semibold text-cg-accent hover:bg-cg-accent/20"
+          >
+            <ScanLine className="h-3.5 w-3.5" />
+            Boundary delineation
+          </Link>
+        </div>
+        <MaharashtraMap showFieldDelineationPanel={false} showPlaceSearch={false} />
       </section>
 
-      <DetectionsByVillageTable detections={detections} onRemove={removeSaved} />
+      <DetectionsByVillageTable detections={detections} />
     </div>
   );
 }

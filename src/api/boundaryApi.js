@@ -54,6 +54,40 @@ export async function fetchVillageBoundary(lat, lng, level = "village", { signal
   return res.json();
 }
 
+async function fetchLocations(path, params, { signal } = {}) {
+  const query = params ? `?${new URLSearchParams(params)}` : "";
+  const res = await fetchWithTimeout(`${VILLAGE_BOUNDARY_API_ORIGIN}/locations/${path}${query}`, {
+    timeoutMs: VILLAGE_FETCH_MS,
+    signal,
+  });
+  if (!res.ok) throw new Error(await errorDetail(res));
+  return res.json();
+}
+
+/** @returns {Promise<Array<{ name: string, display_name: string, taluka_count: number, village_count: number }>>} */
+export function fetchDistricts(opts) {
+  return fetchLocations("districts", null, opts);
+}
+
+/** @returns {Promise<Array<{ name: string, village_count: number }>>} */
+export function fetchTalukas(district, opts) {
+  return fetchLocations("talukas", { district }, opts);
+}
+
+/** @returns {Promise<Array<{ name: string | null, census_code: string, duplicate_name: boolean }>>} */
+export function fetchVillages(district, taluka, opts) {
+  return fetchLocations("villages", { district, taluka }, opts);
+}
+
+/** Exact village boundary for a name + census code from `fetchVillages` (GeoJSON Feature). */
+export function fetchVillageByName({ district, taluka, name, censusCode }, opts) {
+  return fetchLocations(
+    "village-boundary",
+    { district, taluka, name: name || "", census_code: censusCode },
+    opts,
+  );
+}
+
 /** Abort a detection stream if the server sends nothing (not even a keepalive) for this long. */
 const DELINEATION_IDLE_MS = 90_000;
 

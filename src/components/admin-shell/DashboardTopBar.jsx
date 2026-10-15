@@ -1,13 +1,17 @@
 import React from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { LogOut, MapPin } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Menu } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { useAgriPlatform } from "../../context/AgriPlatformContext";
+import RegionSelector from "./RegionSelector";
 
 const ROUTE_META = {
   "/dashboard": {
     title: "DASHBOARD",
-    subtitle: "Field boundaries detected from satellite imagery across Maharashtra",
+    subtitle: "Overview of farm boundaries detected across Maharashtra",
+  },
+  "/boundary-delineation": {
+    title: "BOUNDARY DELINEATION",
+    subtitle: "Detect farm boundaries for a village with the AI field detection model",
   },
   "/survey": {
     title: "CROP CLASSIFICATION",
@@ -17,9 +21,9 @@ const ROUTE_META = {
     title: "CROP MONITORING",
     subtitle: "Check satellite availability and calculate crop indices for detected farms",
   },
-  "/admin": {
-    title: "FARMER MAPPING",
-    subtitle: "Detected fields alongside registered farmers",
+  "/farm-report": {
+    title: "FARM REPORT",
+    subtitle: "Crop health, satellite trends, nutrients, soil and terrain for a detected farm",
   },
   "/farmers": {
     title: "FARMER REGISTRY",
@@ -27,37 +31,40 @@ const ROUTE_META = {
   },
 };
 
-export default function DashboardTopBar() {
+export default function DashboardTopBar({ onOpenMenu }) {
   const { pathname } = useLocation();
-  const nav = useNavigate();
-  const { user, logout } = useAuth();
-  const ap = useAgriPlatform();
-
-  const regionLabel = ap.district ? `${ap.district}, Maharashtra` : "Maharashtra";
+  const { user } = useAuth();
 
   const meta = ROUTE_META[pathname] || {
-    title: "CROPGEN",
+    title: "CROPGEN AI",
     subtitle: "Agriculture administration",
   };
 
 
   return (
-    <header className="sticky top-0 z-50 flex h-[60px] shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-[#0d1117]/95 px-5 backdrop-blur-md">
-      <div className="min-w-0">
-        <h1 className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">{meta.title}</h1>
+    <header className="sticky top-0 z-[1100] flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-white/[0.06] bg-[#0d1117]/95 px-3 py-2 backdrop-blur-md sm:px-5 lg:gap-x-4">
+      <button
+        type="button"
+        onClick={onOpenMenu}
+        aria-label="Open menu"
+        aria-controls="app-sidebar"
+        className="-ml-1 rounded-lg p-2 text-gray-300 hover:bg-white/5 hover:text-white lg:hidden"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+      <img src="/logo.png" alt="CropGen AI" className="h-7 w-7 shrink-0 object-contain lg:hidden" />
+
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">{meta.title}</h1>
         <p className="truncate text-[12px] text-gray-500">{meta.subtitle}</p>
       </div>
 
-      <div className="flex items-center gap-3 shrink-0">
-        <div
-          title={regionLabel}
-          className="hidden sm:flex max-w-[min(240px,36vw)] items-center gap-2 rounded-lg border border-white/[0.08] bg-[#111820] px-3 py-2 text-left text-[12px] text-gray-200"
-        >
-          <MapPin className="h-4 w-4 shrink-0 text-cg-accent/90" aria-hidden />
-          <span className="min-w-0 truncate font-medium">{regionLabel}</span>
-        </div>
+      <div className="order-last w-full lg:order-none lg:w-auto">
+        <RegionSelector />
+      </div>
 
-        <div className="flex items-center gap-2.5 rounded-lg border border-white/[0.08] bg-[#111820] py-1.5 pl-1.5 pr-2">
+      <div className="flex items-center gap-3">
+        <div className="hidden items-center gap-2.5 rounded-lg border border-white/[0.08] bg-[#111820] py-1.5 pl-1.5 pr-2 md:flex">
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-cg-accent/40 to-emerald-900/80 ring-2 ring-cg-accent/25" />
           <div className="hidden sm:block text-left leading-tight max-w-[140px] md:max-w-[200px]">
             <p className="text-[12px] font-semibold text-white truncate">Admin Officer</p>
@@ -66,19 +73,6 @@ export default function DashboardTopBar() {
             </p>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            logout();
-            nav("/login", { replace: true });
-          }}
-          className="flex h-10 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-[#111820] px-3 text-[11px] font-semibold text-gray-400 hover:border-red-500/30 hover:bg-red-950/30 hover:text-red-200"
-          title="Sign out"
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="hidden sm:inline">Logout</span>
-        </button>
       </div>
     </header>
   );

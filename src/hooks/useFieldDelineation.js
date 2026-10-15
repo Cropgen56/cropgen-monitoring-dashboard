@@ -115,6 +115,19 @@ export default function useFieldDelineation() {
     [abortInFlight, beginDraw],
   );
 
+  /** Shows an already-fetched village boundary (e.g. picked by name); null clears it. */
+  const showVillage = useCallback(
+    (feature) => {
+      abortInFlight();
+      setVillage(feature);
+      setArea(null);
+      setFields(null);
+      setError("");
+      setStep(feature ? "village" : "idle");
+    },
+    [abortInFlight],
+  );
+
   /** Sends one geometry (inside the selected village) to the model and saves the result. */
   const runDetection = useCallback(
     async (geometry, km2) => {
@@ -234,6 +247,7 @@ export default function useFieldDelineation() {
     redraw,
     beginDraw,
     pickVillageAt,
+    showVillage,
     submitArea,
     detectWholeVillage,
     removeSaved,

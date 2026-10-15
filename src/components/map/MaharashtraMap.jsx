@@ -11,7 +11,7 @@ import FieldDelineationPanel from "../delineation/FieldDelineationPanel";
 import SatelliteScanLoader from "../ui/SatelliteScanLoader";
 import { useAgriPlatform } from "../../context/AgriPlatformContext";
 import { useFieldDelineationContext } from "../../context/FieldDelineationContext";
-import { cropIndexMappedFeatureKeys } from "../../utils/cropIndexImages";
+import { cropIndexFeatureKey, cropIndexResultsMappedToFeatures } from "../../utils/cropIndexImages";
 
 const MAHARASHTRA_CENTER = [19.7515, 75.7139];
 const FIT_OPTIONS = { padding: [40, 40], maxZoom: 15, animate: true };
@@ -64,6 +64,19 @@ function toLeafletBounds(geojson, pad = 0) {
 }
 
 /** Fits the map whenever the target bounds change (state view ↔ selected district). */
+/** Zooms to one feature (e.g. the farm a report is about) whenever it changes. */
+function FocusFeature({ feature }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!feature) return undefined;
+    const b = L.geoJSON(feature).getBounds();
+    if (!b.isValid()) return undefined;
+    const t = setTimeout(() => map.fitBounds(b, { padding: [60, 60], maxZoom: 18, animate: true }), 120);
+    return () => clearTimeout(t);
+  }, [feature, map]);
+  return null;
+}
+
 function FitBounds({ bounds }) {
   const map = useMap();
   const prev = useRef(null);
@@ -92,15 +105,47 @@ export default function MaharashtraMap({
   selectedFieldKey = "",
   onFieldSelect,
   showFieldDelineationPanel = true,
+  /** Place search box (starts a village lookup); off on read-only overview maps. */
+  showPlaceSearch = true,
   cropIndexResults = [],
   cropIndexFeatures = [],
   showCropIndexImages = true,
   showFieldFills = true,
-  indexCalculationLoading = false,
+  /** Page-level long task shown over the map: { kind, message?, pct?, startedAt? } (see SatelliteScanLoader). */
+  loadingTask = null,
+  /** Optional GeoJSON feature to zoom onto (Farm Report's selected farm). */
+  focusFeature = null,
+  /** Village analysis: field key → fill colour, and field key → farm analysis (hover cards). */
+  fieldColorByKey,
+  fieldInsightsByKey,
+  /** Optional map legend: { title, items: [{ label, color }] } (e.g. village analysis colouring). */
+  legend = null,
 }) {
   const { district, setDistrict, maharashtraOutline, maharashtraDistrictsOutline, outlinesLoading } =
     useAgriPlatform();
-  const { step: delineationStep, pickVillageAt } = useFieldDelineationContext();
+  const {
+    step: delineationStep,
+    pickVillageAt,
+    progress: delineationProgress,
+    runStartedAt: delineationStartedAt,
+  } = useFieldDelineationContext();
+
+  // One overlay for every long task: the page's own task first, then field detection,
+  // then the initial outline load.
+  const activeTask =
+    loadingTask ||
+    (delineationStep === "running"
+      ? {
+          kind: "delineation",
+          message: delineationProgress?.message,
+          pct: delineationProgress?.pct,
+          startedAt: delineationStartedAt,
+        }
+      : delineationStep === "loadingVillage"
+        ? { kind: "village" }
+        : outlinesLoading
+          ? { kind: "map" }
+          : null);
 
   const districtFeature = useMemo(
     () => maharashtraDistrictsOutline?.features?.find((f) => f.properties?.district === district) ?? null,
@@ -144,9 +189,18 @@ export default function MaharashtraMap({
     [delineationStep, pickVillageAt],
   );
 
+  // One canvas for districts *and* fields: a canvas element receives every mouse event over
+  // the map, so with two canvases whichever was created last hid the other's hover tooltips.
   const canvasRenderer = useMemo(() => L.canvas({ padding: 0.5 }), []);
-  const cropIndexFieldIds = useMemo(
-    () => cropIndexMappedFeatureKeys(cropIndexResults, cropIndexFeatures),
+  /** Field key → its crop index result, for the image overlay flags and the hover card. */
+  const cropIndexByField = useMemo(
+    () =>
+      new Map(
+        cropIndexResultsMappedToFeatures(cropIndexResults, cropIndexFeatures).map(({ feature, result }) => [
+          cropIndexFeatureKey(feature),
+          result,
+        ]),
+      ),
     [cropIndexResults, cropIndexFeatures],
   );
 
@@ -168,6 +222,8 @@ export default function MaharashtraMap({
             style={districtStyle}
             onEachFeature={onEachDistrict}
             renderer={canvasRenderer}
+            // Re-added whenever the district changes: keep it under the fields so they win hover.
+            eventHandlers={{ add: (e) => e.target.bringToBack() }}
           />
         )}
 
@@ -182,11 +238,14 @@ export default function MaharashtraMap({
         )}
 
         <FieldDelineationLayer
+          renderer={canvasRenderer}
+          fieldColorByKey={fieldColorByKey}
+          fieldInsightsByKey={fieldInsightsByKey}
           fieldClassifications={fieldClassifications}
           classificationDetectionId={classificationDetectionId}
           selectedFieldKey={selectedFieldKey}
           onFieldSelect={onFieldSelect}
-          cropIndexFieldIds={cropIndexFieldIds}
+          cropIndexByField={cropIndexByField}
           showFieldFills={showFieldFills}
         />
         <CropIndexImageOverlays
@@ -194,7 +253,8 @@ export default function MaharashtraMap({
           features={cropIndexFeatures}
           visible={showCropIndexImages}
         />
-        <MapPlaceSearch onPlaceSelect={onPlaceSelect} />
+        {showPlaceSearch && <MapPlaceSearch onPlaceSelect={onPlaceSelect} />}
+        <FocusFeature feature={focusFeature} />
         <FitBounds bounds={bounds} />
       </MapContainer>
 
@@ -212,7 +272,21 @@ export default function MaharashtraMap({
         </button>
       )}
 
-      {(outlinesLoading || indexCalculationLoading) && <SatelliteScanLoader />}
+      {legend?.items?.length > 0 && (
+        <div className="pointer-events-none absolute bottom-7 right-3 z-[1000] rounded-lg border border-white/10 bg-[#0d1117]/90 px-3 py-2 shadow-lg backdrop-blur-sm">
+          <p className="mb-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-gray-400">{legend.title}</p>
+          <ul className="space-y-1">
+            {legend.items.map((item) => (
+              <li key={item.label} className="flex items-center gap-2 text-[10px] text-gray-200">
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: item.color }} />
+                {item.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {activeTask && <SatelliteScanLoader key={activeTask.kind} task={activeTask} />}
     </div>
   );
 }

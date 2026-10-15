@@ -6,7 +6,7 @@ export default function AIInsightsPage() {
   const { district } = useAgriPlatform();
 
   return (
-    <div className="space-y-4 p-5 md:p-6">
+    <div className="space-y-4 p-3 sm:p-5 md:p-6">
       <AIInsights district={district} />
     </div>
   );

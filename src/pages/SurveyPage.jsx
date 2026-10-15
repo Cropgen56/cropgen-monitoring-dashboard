@@ -27,6 +27,7 @@ export default function SurveyPage() {
   const [fieldClassifications, setFieldClassifications] = useState(null);
   const [classificationInsights, setClassificationInsights] = useState(null);
   const [selectedField, setSelectedField] = useState(null);
+  const [classificationTask, setClassificationTask] = useState(null);
   const detections = useMemo(() => detectionsInDistrict(saved, district), [saved, district]);
   const setMapClassifications = useCallback(
     (classifications, insights) => {
@@ -35,7 +36,19 @@ export default function SurveyPage() {
     },
     [],
   );
-  const classificationDetectionId = fields?.features?.[0]?.properties?.detectionId || "";
+  // The latest detection run lives only in memory; after a reload (or re-picking the
+  // village) classify the village's most recent saved detection. One detection only:
+  // field_ids restart per run, and predictions are matched to fields by field_id.
+  const classificationFields = useMemo(() => {
+    if (fields?.features?.length) return fields;
+    const v = village?.properties;
+    if (!v) return null;
+    const latest = saved.findLast(
+      (r) => r.village?.name === v.name && r.village?.taluka === v.taluka && r.village?.district === v.district,
+    );
+    return latest?.fields?.features?.length ? latest.fields : null;
+  }, [fields, saved, village]);
+  const classificationDetectionId = classificationFields?.features?.[0]?.properties?.detectionId || "";
   const visibleSelectedField = selectedField && detections.some((detection) =>
     String(detection.id) === String(selectedField.detectionId) &&
     detection.fields.features.some((feature) =>
@@ -69,7 +82,7 @@ export default function SurveyPage() {
     );
 
   return (
-    <div className="space-y-4 p-5 md:p-6">
+    <div className="space-y-4 p-3 sm:p-5 md:p-6">
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <MaharashtraMap
           heightClass="h-[min(70vh,680px)]"
@@ -78,13 +91,15 @@ export default function SurveyPage() {
           selectedFieldKey={visibleSelectedField?.key || ""}
           onFieldSelect={selectMapField}
           showFieldDelineationPanel={false}
+          loadingTask={classificationTask}
         />
         <aside className="space-y-4">
           <FieldDelineationPanel placement="inline" />
           <CropClassificationMapControl
             village={village}
-            fields={fields}
+            fields={classificationFields}
             onClassifications={setMapClassifications}
+            onTaskChange={setClassificationTask}
           />
         </aside>
       </div>

@@ -35,7 +35,7 @@ export default function GovernancePage() {
   }, [rollup]);
 
   return (
-    <div className="space-y-4 p-5 md:p-6">
+    <div className="space-y-4 p-3 sm:p-5 md:p-6">
       <DataQualityBanner mapDataQuality={s.mapDataQuality} />
 
       <div className="space-y-4 min-w-0 max-w-[2000px]">

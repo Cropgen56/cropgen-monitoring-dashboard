@@ -1,6 +1,6 @@
 /** Client-only demo credentials (prototype — not for production). */
-export const DEMO_ADMIN_EMAIL = "admin@cropgen.app";
-export const DEMO_ADMIN_PASSWORD = "cropgen@2026";
+export const DEMO_ADMIN_EMAIL = "admin@cropgen.ai";
+export const DEMO_ADMIN_PASSWORD = "123456";
 
 const STORAGE_KEY = "cropgen_demo_session_v1";
 

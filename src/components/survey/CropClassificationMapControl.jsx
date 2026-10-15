@@ -20,6 +20,8 @@ export default function CropClassificationMapControl({
   village,
   fields,
   onClassifications,
+  /** Optional: receives the map-loader task ({ kind, message, pct, startedAt }) while classifying, else null. */
+  onTaskChange,
 }) {
   const periods = useMemo(() => getDateRangePresets(), []);
   const [periodId, setPeriodId] = useState("current-kharif");
@@ -30,6 +32,27 @@ export default function CropClassificationMapControl({
   const [error, setError] = useState("");
   const [classifiedCount, setClassifiedCount] = useState(null);
   const controllerRef = useRef(null);
+  const [startedAt, setStartedAt] = useState(null);
+
+  useEffect(() => {
+    if (!onTaskChange) return;
+    const total = Number(progress?.total);
+    const done = Number(progress?.completed);
+    onTaskChange(
+      running
+        ? {
+            kind: "classification",
+            message: progress ? progressLabel(progress) : undefined,
+            pct: Number.isFinite(progress?.pct)
+              ? progress.pct
+              : total > 0 && Number.isFinite(done) ? (done / total) * 100 : undefined,
+            startedAt,
+          }
+        : null,
+    );
+  }, [running, progress, startedAt, onTaskChange]);
+
+  useEffect(() => () => onTaskChange?.(null), [onTaskChange]);
 
   const selectedPeriod = periods.find((period) => period.id === periodId);
   const startDate = periodId === "custom" ? customStart : selectedPeriod?.startDate;
@@ -63,6 +86,7 @@ export default function CropClassificationMapControl({
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
+    setStartedAt(Date.now());
     setRunning(true);
     setProgress(null);
     setError("");

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Leaf, Mail, Lock } from "lucide-react";
+import { Mail, Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
@@ -36,11 +36,9 @@ export default function LoginPage() {
       <div className="flex w-full flex-col justify-center px-8 lg:w-1/2 lg:px-16">
         <div className="mx-auto w-full max-w-md">
           <div className="mb-10 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cg-accent/15 text-cg-accent">
-              <Leaf className="h-7 w-7" />
-            </div>
+            <img src="/logo.png" alt="" className="h-14 w-14 shrink-0 object-contain" />
             <div>
-              <h1 className="text-xl font-bold text-white">CropGen</h1>
+              <h1 className="text-xl font-bold text-white">CropGen AI</h1>
               <p className="text-[11px] text-gray-500">Crop monitoring &amp; administration intelligence</p>
             </div>
           </div>
@@ -65,7 +63,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-lg border border-white/[0.1] bg-[#111820] py-3 pl-10 pr-4 text-sm text-white outline-none focus:border-cg-accent/50"
-                  placeholder="admin@cropgen.app"
+                  placeholder="admin@cropgen.ai"
                   autoComplete="username"
                   required
                 />

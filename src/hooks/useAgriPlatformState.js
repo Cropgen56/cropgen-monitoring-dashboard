@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 async function fetchGeoJson(url) {
   const res = await fetch(url);
@@ -12,8 +12,15 @@ async function fetchGeoJson(url) {
  * village-boundary and field-delineation APIs (see FieldDelineationContext).
  */
 export function useAgriPlatformState() {
-  /** Empty = whole-state view; set by clicking a district on the map. */
-  const [district, setDistrict] = useState("");
+  /** Empty = whole-state view; set by clicking a district on the map or the top-bar picker. */
+  const [district, setDistrictState] = useState("");
+  /** Taluka within `district` (dataset spelling); cleared whenever the district is set. */
+  const [taluka, setTaluka] = useState("");
+
+  const setDistrict = useCallback((name) => {
+    setDistrictState(name);
+    setTaluka("");
+  }, []);
   const [maharashtraOutline, setMaharashtraOutline] = useState(null);
   const [maharashtraDistrictsOutline, setMaharashtraDistrictsOutline] = useState(null);
   const [outlinesLoading, setOutlinesLoading] = useState(true);
@@ -38,10 +45,12 @@ export function useAgriPlatformState() {
     () => ({
       district,
       setDistrict,
+      taluka,
+      setTaluka,
       maharashtraOutline,
       maharashtraDistrictsOutline,
       outlinesLoading,
     }),
-    [district, maharashtraOutline, maharashtraDistrictsOutline, outlinesLoading],
+    [district, setDistrict, taluka, maharashtraOutline, maharashtraDistrictsOutline, outlinesLoading],
   );
 }

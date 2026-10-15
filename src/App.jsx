@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { AgriPlatformProvider } from "./context/AgriPlatformContext";
 import { FieldDelineationProvider } from "./context/FieldDelineationContext";
@@ -10,7 +10,8 @@ import LoginPage from "./pages/LoginPage";
 import DashboardOverviewPage from "./pages/DashboardOverviewPage";
 import SurveyPage from "./pages/SurveyPage";
 import CropMonitoringPage from "./pages/CropMonitoringPage";
-import AdminPage from "./pages/AdminPage";
+import FarmReportPage from "./pages/FarmReportPage";
+import BoundaryDelineationPage from "./pages/BoundaryDelineationPage";
 import FarmersRegistryPage from "./pages/FarmersRegistryPage";
 
 export default function App() {
@@ -24,9 +25,12 @@ export default function App() {
               <Route element={<RequireAuth />}>
                 <Route element={<AdminAppLayout />}>
                   <Route path="/dashboard" element={<DashboardOverviewPage />} />
+                  <Route path="/boundary-delineation" element={<BoundaryDelineationPage />} />
                   <Route path="/survey" element={<SurveyPage />} />
                   <Route path="/crop-monitoring" element={<CropMonitoringPage />} />
-                  <Route path="/admin" element={<AdminPage />} />
+                  <Route path="/farm-report" element={<FarmReportPage />} />
+                  {/* Old "Farmer Mapping" URL */}
+                  <Route path="/admin" element={<Navigate to="/farm-report" replace />} />
                   <Route path="/farmers" element={<FarmersRegistryPage />} />
                 </Route>
               </Route>
