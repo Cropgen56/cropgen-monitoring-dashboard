@@ -61,13 +61,14 @@ export async function autocompletePlaces(input, { sessionToken, signal } = {}) {
  * @returns {Promise<{ name: string, address: string, lat: number, lng: number,
  *   viewport: [[number, number], [number, number]] | null, district: string }>}
  */
-export async function getPlace(placeId, { sessionToken } = {}) {
+export async function getPlace(placeId, { sessionToken, signal } = {}) {
   const params = sessionToken ? `?sessionToken=${encodeURIComponent(sessionToken)}` : "";
   const res = await fetch(`${BASE_URL}/places/${encodeURIComponent(placeId)}${params}`, {
     headers: {
       "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
       "X-Goog-FieldMask": "displayName,formattedAddress,location,viewport,addressComponents",
     },
+    signal,
   });
   if (!res.ok) throw new Error(`Place details: ${await errorMessage(res)}`);
   const p = await res.json();

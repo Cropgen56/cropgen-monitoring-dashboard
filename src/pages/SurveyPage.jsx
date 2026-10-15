@@ -1,10 +1,15 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { useAgriPlatform } from "../context/AgriPlatformContext";
 import { useFieldDelineationContext } from "../context/FieldDelineationContext";
 import MaharashtraMap from "../components/map/MaharashtraMap";
+import FieldDelineationPanel from "../components/delineation/FieldDelineationPanel";
 import { DetectedFieldsTable } from "../components/delineation/DetectionTables";
+import CropClassificationMapControl from "../components/survey/CropClassificationMapControl";
+import CropClassificationInsights from "../components/survey/CropClassificationInsights";
+import SelectedFieldDetails from "../components/survey/SelectedFieldDetails";
 import { detectionsInDistrict } from "../utils/delineationStats";
+import { fieldPredictionForId } from "../utils/cropClassificationColors";
 
 function downloadGeoJson(data, filename) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/geo+json" }));
@@ -18,8 +23,44 @@ function downloadGeoJson(data, filename) {
 /** Crop monitoring workspace: satellite map with field detection, and the detected field list. */
 export default function SurveyPage() {
   const { district } = useAgriPlatform();
-  const { saved } = useFieldDelineationContext();
+  const { saved, village, fields } = useFieldDelineationContext();
+  const [fieldClassifications, setFieldClassifications] = useState(null);
+  const [classificationInsights, setClassificationInsights] = useState(null);
+  const [selectedField, setSelectedField] = useState(null);
   const detections = useMemo(() => detectionsInDistrict(saved, district), [saved, district]);
+  const setMapClassifications = useCallback(
+    (classifications, insights) => {
+      setFieldClassifications(classifications);
+      setClassificationInsights(insights);
+    },
+    [],
+  );
+  const classificationDetectionId = fields?.features?.[0]?.properties?.detectionId || "";
+  const visibleSelectedField = selectedField && detections.some((detection) =>
+    String(detection.id) === String(selectedField.detectionId) &&
+    detection.fields.features.some((feature) =>
+      String(feature.properties?.field_id) ===
+        String(selectedField.feature?.properties?.field_id),
+    ),
+  )
+    ? selectedField
+    : null;
+  const selectedFieldPrediction =
+    visibleSelectedField &&
+    String(visibleSelectedField.detectionId ?? "") === String(classificationDetectionId)
+      ? fieldPredictionForId(fieldClassifications, visibleSelectedField.feature?.properties?.field_id)
+      : null;
+
+  const selectMapField = useCallback(({ key, feature }) => {
+    const detectionId = feature.properties?.detectionId;
+    const detection = saved.find((row) => String(row.id) === String(detectionId));
+    setSelectedField({
+      key,
+      feature,
+      detectionId,
+      village: detection?.village,
+    });
+  }, [saved]);
 
   const exportFields = () =>
     downloadGeoJson(
@@ -29,9 +70,35 @@ export default function SurveyPage() {
 
   return (
     <div className="space-y-4 p-5 md:p-6">
-      <MaharashtraMap heightClass="h-[min(70vh,680px)]" />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <MaharashtraMap
+          heightClass="h-[min(70vh,680px)]"
+          fieldClassifications={fieldClassifications || {}}
+          classificationDetectionId={classificationDetectionId}
+          selectedFieldKey={visibleSelectedField?.key || ""}
+          onFieldSelect={selectMapField}
+          showFieldDelineationPanel={false}
+        />
+        <aside className="space-y-4">
+          <FieldDelineationPanel placement="inline" />
+          <CropClassificationMapControl
+            village={village}
+            fields={fields}
+            onClassifications={setMapClassifications}
+          />
+        </aside>
+      </div>
+      <CropClassificationInsights
+        insights={classificationInsights}
+        predictions={fieldClassifications}
+        villageName={village?.properties?.name}
+      />
       <DetectedFieldsTable
         detections={detections}
+        selectedFieldKey={visibleSelectedField?.key || ""}
+        onSelectField={setSelectedField}
+        fieldClassifications={fieldClassifications || {}}
+        classificationDetectionId={classificationDetectionId}
         actions={
           detections.length > 0 && (
             <button
@@ -43,6 +110,10 @@ export default function SurveyPage() {
             </button>
           )
         }
+      />
+      <SelectedFieldDetails
+        selected={visibleSelectedField}
+        prediction={selectedFieldPrediction}
       />
     </div>
   );

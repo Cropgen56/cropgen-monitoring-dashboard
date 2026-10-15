@@ -13,7 +13,7 @@ npm run dev
 
 Open the URL shown in the terminal (default `http://localhost:5173`).
 
-**API hosts (optional white-label):** Set `VITE_API_BASE_URL` and `VITE_LOCATION_API_ORIGIN` in a `.env` file to point at your backends. Defaults match the original demo servers.
+**API hosts (optional white-label):** Set `VITE_API_BASE_URL`, `VITE_LOCATION_API_ORIGIN`, or `VITE_CROP_MONITORING_API_BASE_URL` in a `.env` file to point at your backends. The crop monitoring endpoints default to `https://server.cropgenapp.com/v4/api` and send `VITE_CROP_MONITORING_API_KEY` as a Bearer token. Only use a browser-safe key for this setting: all `VITE_` values are included in the frontend bundle. Keep secret credentials on a backend proxy.
 
 **Production build:**
 

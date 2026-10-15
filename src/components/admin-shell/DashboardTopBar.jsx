@@ -10,8 +10,12 @@ const ROUTE_META = {
     subtitle: "Field boundaries detected from satellite imagery across Maharashtra",
   },
   "/survey": {
-    title: "CROP MONITORING",
+    title: "CROP CLASSIFICATION",
     subtitle: "Detect field boundaries and review detected fields",
+  },
+  "/crop-monitoring": {
+    title: "CROP MONITORING",
+    subtitle: "Check satellite availability and calculate crop indices for detected farms",
   },
   "/admin": {
     title: "FARMER MAPPING",

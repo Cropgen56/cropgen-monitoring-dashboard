@@ -95,19 +95,21 @@ export default function useFieldDelineation() {
       setStep("loadingVillage");
       try {
         const feature = await fetchVillageBoundary(lat, lng, "village", { signal: ctrl.signal });
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted) return null;
         if (!feature) {
           setError("No village boundary found at that point. Coverage is Maharashtra only.");
           setStep(thenDraw ? "pickVillage" : "idle");
-          return;
+          return null;
         }
         setVillage(feature);
         if (thenDraw) beginDraw();
         else setStep("village");
+        return feature;
       } catch (e) {
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted) return null;
         setError(e?.name === "TimeoutError" ? "Village lookup timed out. Try again." : e.message);
         setStep(thenDraw ? "pickVillage" : "idle");
+        return null;
       }
     },
     [abortInFlight, beginDraw],
@@ -131,10 +133,23 @@ export default function useFieldDelineation() {
       try {
         const result = await delineateFields(request, { signal: ctrl.signal, onProgress: setProgress });
         if (ctrl.signal.aborted) return;
-        setFields(result);
+        const id = crypto.randomUUID();
+        const detectionFields = {
+          ...result,
+          features: (result.features || []).map((f) => ({
+            ...f,
+            properties: {
+              ...f.properties,
+              village: f.properties?.village || name,
+              taluka: f.properties?.taluka || taluka,
+              district,
+              detectionId: id,
+            },
+          })),
+        };
+        setFields(detectionFields);
         setStep("done");
-        if (result.features?.length) {
-          const id = crypto.randomUUID();
+        if (detectionFields.features.length) {
           setSaved((rows) => [
             ...rows,
             {
@@ -142,13 +157,7 @@ export default function useFieldDelineation() {
               village: { name, taluka, district },
               areaKm2: km2,
               createdAt: new Date().toISOString(),
-              fields: {
-                type: "FeatureCollection",
-                features: result.features.map((f) => ({
-                  ...f,
-                  properties: { ...f.properties, district, detectionId: id },
-                })),
-              },
+              fields: detectionFields,
             },
           ]);
         }

@@ -42,6 +42,7 @@ import MapPlaceSearch from "../map/MapPlaceSearch";
 import FieldDelineationLayer from "../delineation/FieldDelineationLayer";
 import FieldDelineationPanel from "../delineation/FieldDelineationPanel";
 import { useFieldDelineationContext } from "../../context/FieldDelineationContext";
+import { useAgriPlatform } from "../../context/AgriPlatformContext";
 
 const ACRES_PER_HA = 2.471053814671738;
 
@@ -836,6 +837,7 @@ export default function AgriMap({
   showSurveyPopup = false,
 }) {
   const { step: delineationStep, pickVillageAt } = useFieldDelineationContext();
+  const { setDistrict } = useAgriPlatform();
   /** A searched place loads its village boundary, unless a draw / detection is in progress. */
   const onPlaceSelect = useCallback(
     (place) => {
@@ -945,10 +947,14 @@ export default function AgriMap({
         maxWidth: 320,
       });
       layer.on({
-        click: () => onPlotClick?.(feature),
+        click: () => {
+          const district = String(feature?.properties?.district || "").trim();
+          if (district) setDistrict(district);
+          onPlotClick?.(feature);
+        },
       });
     },
-    [onPlotClick, selectedMhDistrict],
+    [onPlotClick, selectedMhDistrict, setDistrict],
   );
 
   const maharashtraCentroid = useMemo(

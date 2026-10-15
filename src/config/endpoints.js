@@ -18,6 +18,16 @@ export const FIELD_DELINEATION_API_ORIGIN =
   import.meta.env.VITE_FIELD_DELINEATION_API_ORIGIN ||
   "https://boundary-delineation-411399230985.asia-south1.run.app";
 
+/** Village crop classification service (field profiles + date range → crop classifications). */
+export const CROP_CLASSIFICATION_API_ORIGIN =
+  import.meta.env.VITE_CROP_CLASSIFICATION_API_ORIGIN ||
+  "https://crop-classification-api-411399230985.asia-south1.run.app";
+
+/** Satellite availability and index calculation API. */
+export const CROP_MONITORING_API_BASE_URL =
+  import.meta.env.VITE_CROP_MONITORING_API_BASE_URL || "https://server.cropgenapp.com/v4/api";
+export const CROP_MONITORING_API_KEY = import.meta.env.VITE_CROP_MONITORING_API_KEY ?? "";
+
 /** Google Maps Platform browser key (Places API New) for map place search. Set in `.env.local`. */
 export const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
 

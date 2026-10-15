@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, Satellite, Contact2, Leaf } from "lucide-react";
+import { LayoutDashboard, Users, Satellite, Contact2, Leaf, Activity } from "lucide-react";
 
 const navItem =
   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors";
@@ -9,7 +9,8 @@ const navIcon = "h-[18px] w-[18px] shrink-0 opacity-90";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/survey", label: "Crop Monitoring", icon: Satellite },
+  { to: "/survey", label: "Crop Classification", icon: Satellite, end: true },
+  { to: "/crop-monitoring", label: "Crop Monitoring", icon: Activity, end: true },
   { to: "/admin", label: "Farmer Mapping", icon: Users },
   { to: "/farmers", label: "Farmer registry", icon: Contact2 },
 ];

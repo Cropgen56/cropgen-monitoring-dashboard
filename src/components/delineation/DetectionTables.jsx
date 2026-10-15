@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Trash2 } from "lucide-react";
 import { ACRES_PER_HA, fieldAreaHa } from "../../utils/delineationStats";
+import { fieldPredictionForId } from "../../utils/cropClassificationColors";
 
 const thCls = "px-3 py-2 font-bold";
 const tdCls = "px-3 py-2";
@@ -91,11 +92,24 @@ export function DetectionsByVillageTable({ detections, onRemove }) {
 const MAX_FIELD_ROWS = 500;
 
 /** One row per detected field polygon. */
-export function DetectedFieldsTable({ detections, actions }) {
+export function DetectedFieldsTable({
+  detections,
+  actions,
+  selectedFieldKey = "",
+  onSelectField,
+  fieldClassifications = {},
+  classificationDetectionId = "",
+}) {
   const rows = useMemo(
     () =>
       detections.flatMap((r) =>
-        r.fields.features.map((f) => ({ key: `${r.id}-${f.properties?.field_id}`, village: r.village, p: f.properties || {} })),
+        r.fields.features.map((feature) => ({
+          key: `${r.id}:${feature.properties?.field_id}`,
+          detectionId: r.id,
+          feature,
+          village: r.village,
+          p: feature.properties || {},
+        })),
       ),
     [detections],
   );
@@ -117,14 +131,45 @@ export function DetectedFieldsTable({ detections, actions }) {
           <th className={`${thCls} text-right`}>Area (ha)</th>
           <th className={`${thCls} text-right`}>Area (ac)</th>
           <th className={`${thCls} text-right`}>Perimeter (m)</th>
+          <th className={thCls}>Classified crop</th>
+          <th className={`${thCls} text-right`}>Predicted yield (t)</th>
+          <th className={`${thCls} text-right`}>Yield deficit</th>
         </tr>
       </thead>
       <tbody>
-        {rows.length === 0 && <EmptyRow colSpan={5}>{EMPTY_HINT}</EmptyRow>}
-        {rows.slice(0, MAX_FIELD_ROWS).map(({ key, village, p }) => {
+        {rows.length === 0 && <EmptyRow colSpan={8}>{EMPTY_HINT}</EmptyRow>}
+        {rows.slice(0, MAX_FIELD_ROWS).map(({ key, detectionId, feature, village, p }) => {
           const ha = Number(p.area_ha) || 0;
+          const prediction = detectionId === String(classificationDetectionId)
+            ? fieldPredictionForId(fieldClassifications, p.field_id)
+            : null;
+          const yieldPrediction = prediction?.yield_prediction;
+          const estimatedYield = yieldPrediction?.estimated_yield_tonnes == null
+            ? NaN
+            : Number(yieldPrediction.estimated_yield_tonnes);
+          const yieldDeficit = yieldPrediction?.yield_deficit_pct == null
+            ? NaN
+            : Number(yieldPrediction.yield_deficit_pct);
           return (
-            <tr key={key} className="border-t border-white/[0.05] text-gray-300">
+            <tr
+              key={key}
+              role={onSelectField ? "button" : undefined}
+              tabIndex={onSelectField ? 0 : undefined}
+              aria-pressed={onSelectField ? key === selectedFieldKey : undefined}
+              aria-label={onSelectField ? `View details for field ${p.field_id ?? ""}` : undefined}
+              onClick={() => onSelectField?.({ key, feature, village, detectionId })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onSelectField?.({ key, feature, village, detectionId });
+                }
+              }}
+              className={`border-t border-white/[0.05] text-gray-300 ${
+                onSelectField
+                  ? "cursor-pointer transition-colors hover:bg-lime-300/[0.06] focus:bg-lime-300/[0.08] focus:outline-none"
+                  : ""
+              } ${key === selectedFieldKey ? "bg-lime-300/[0.08]" : ""}`}
+            >
               <td className={`${tdCls} font-mono text-white`}>#{p.field_id ?? "—"}</td>
               <td className={tdCls}>
                 {village?.name || "—"}
@@ -133,6 +178,15 @@ export function DetectedFieldsTable({ detections, actions }) {
               <td className={`${tdCls} text-right tabular-nums`}>{ha.toFixed(3)}</td>
               <td className={`${tdCls} text-right tabular-nums`}>{(ha * ACRES_PER_HA).toFixed(2)}</td>
               <td className={`${tdCls} text-right tabular-nums`}>{Math.round(Number(p.perimeter_m) || 0)}</td>
+              <td className={`${tdCls} font-medium ${prediction ? "text-lime-200" : "text-gray-600"}`}>
+                {prediction?.best_crop || "Not classified"}
+              </td>
+              <td className={`${tdCls} text-right tabular-nums text-gray-300`}>
+                {Number.isFinite(estimatedYield) ? estimatedYield.toFixed(1) : "—"}
+              </td>
+              <td className={`${tdCls} text-right tabular-nums text-gray-300`}>
+                {Number.isFinite(yieldDeficit) ? `${yieldDeficit.toFixed(1)}%` : "—"}
+              </td>
             </tr>
           );
         })}

@@ -229,10 +229,108 @@ body {
   animation: agri-loader-slide 1.35s ease-in-out infinite;
 }
 
+/* Map-wide satellite scan effect used while imagery and index layers load. */
+.agri-map-scan {
+  pointer-events: none;
+  background: rgba(4, 17, 10, 0.24);
+}
+
+.agri-map-scan-grid {
+  background-image:
+    linear-gradient(rgba(52, 211, 153, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(52, 211, 153, 0.09) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.agri-map-scan-corner {
+  border-color: rgba(110, 231, 183, 0.72);
+  filter: drop-shadow(0 0 5px rgba(52, 211, 153, 0.55));
+}
+
+.agri-map-scan-sweep {
+  animation: agri-map-scan-sweep 3.6s ease-in-out infinite alternate;
+}
+
+.agri-map-scan-beam {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(52, 211, 153, 0.18) 16%,
+    rgba(110, 231, 183, 0.95) 50%,
+    rgba(52, 211, 153, 0.18) 84%,
+    transparent
+  );
+  box-shadow: 0 0 18px 4px rgba(52, 211, 153, 0.48);
+}
+
+.agri-map-scan-trail {
+  background: linear-gradient(to bottom, rgba(52, 211, 153, 0.18), transparent);
+}
+
+.agri-map-satellite-icon {
+  animation: agri-map-satellite-spin 5s linear infinite;
+}
+
+.agri-map-scan-point {
+  box-shadow: 0 0 9px 2px rgba(52, 211, 153, 0.85);
+  animation: agri-map-scan-ping 1.8s ease-in-out infinite;
+}
+
+.agri-map-scan-reduced .agri-map-scan-sweep,
+.agri-map-scan-reduced .agri-map-satellite-icon,
+.agri-map-scan-reduced .agri-map-scan-point {
+  animation: none;
+}
+
+.agri-map-scan-reduced .agri-map-scan-sweep {
+  transform: translateY(42%);
+}
+
+.agri-map-scan-point-reduced {
+  opacity: 0.8;
+}
+
+@keyframes agri-map-scan-sweep {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(90%);
+  }
+}
+
+@keyframes agri-map-satellite-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes agri-map-scan-ping {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.65);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .agri-loader-indeterminate {
     animation: none;
     transform: none;
     width: 66%;
+  }
+
+  .agri-map-scan-sweep,
+  .agri-map-satellite-icon,
+  .agri-map-scan-point {
+    animation: none;
+  }
+
+  .agri-map-scan-sweep {
+    transform: translateY(42%);
   }
 }

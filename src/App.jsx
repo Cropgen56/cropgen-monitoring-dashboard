@@ -9,6 +9,7 @@ import AdminAppLayout from "./layouts/AdminAppLayout";
 import LoginPage from "./pages/LoginPage";
 import DashboardOverviewPage from "./pages/DashboardOverviewPage";
 import SurveyPage from "./pages/SurveyPage";
+import CropMonitoringPage from "./pages/CropMonitoringPage";
 import AdminPage from "./pages/AdminPage";
 import FarmersRegistryPage from "./pages/FarmersRegistryPage";
 
@@ -24,6 +25,7 @@ export default function App() {
                 <Route element={<AdminAppLayout />}>
                   <Route path="/dashboard" element={<DashboardOverviewPage />} />
                   <Route path="/survey" element={<SurveyPage />} />
+                  <Route path="/crop-monitoring" element={<CropMonitoringPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="/farmers" element={<FarmersRegistryPage />} />
                 </Route>

@@ -5,11 +5,13 @@ import * as turf from "@turf/turf";
 import { X } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import MapPlaceSearch from "./MapPlaceSearch";
+import CropIndexImageOverlays from "./CropIndexImageOverlays";
 import FieldDelineationLayer from "../delineation/FieldDelineationLayer";
 import FieldDelineationPanel from "../delineation/FieldDelineationPanel";
 import SatelliteScanLoader from "../ui/SatelliteScanLoader";
 import { useAgriPlatform } from "../../context/AgriPlatformContext";
 import { useFieldDelineationContext } from "../../context/FieldDelineationContext";
+import { cropIndexMappedFeatureKeys } from "../../utils/cropIndexImages";
 
 const MAHARASHTRA_CENTER = [19.7515, 75.7139];
 const FIT_OPTIONS = { padding: [40, 40], maxZoom: 15, animate: true };
@@ -83,7 +85,19 @@ function FitBounds({ bounds }) {
  * Maharashtra satellite map used on every page: state + district outlines (click a
  * district to focus it), Google place search, and live field delineation results.
  */
-export default function MaharashtraMap({ heightClass = "h-[min(62vh,560px)]" }) {
+export default function MaharashtraMap({
+  heightClass = "h-[min(62vh,560px)]",
+  fieldClassifications = {},
+  classificationDetectionId = "",
+  selectedFieldKey = "",
+  onFieldSelect,
+  showFieldDelineationPanel = true,
+  cropIndexResults = [],
+  cropIndexFeatures = [],
+  showCropIndexImages = true,
+  showFieldFills = true,
+  indexCalculationLoading = false,
+}) {
   const { district, setDistrict, maharashtraOutline, maharashtraDistrictsOutline, outlinesLoading } =
     useAgriPlatform();
   const { step: delineationStep, pickVillageAt } = useFieldDelineationContext();
@@ -131,6 +145,10 @@ export default function MaharashtraMap({ heightClass = "h-[min(62vh,560px)]" }) 
   );
 
   const canvasRenderer = useMemo(() => L.canvas({ padding: 0.5 }), []);
+  const cropIndexFieldIds = useMemo(
+    () => cropIndexMappedFeatureKeys(cropIndexResults, cropIndexFeatures),
+    [cropIndexResults, cropIndexFeatures],
+  );
 
   return (
     <div className={`relative w-full overflow-hidden rounded-xl border border-green-900/30 bg-black/20 ${heightClass}`}>
@@ -163,12 +181,24 @@ export default function MaharashtraMap({ heightClass = "h-[min(62vh,560px)]" }) 
           />
         )}
 
-        <FieldDelineationLayer />
+        <FieldDelineationLayer
+          fieldClassifications={fieldClassifications}
+          classificationDetectionId={classificationDetectionId}
+          selectedFieldKey={selectedFieldKey}
+          onFieldSelect={onFieldSelect}
+          cropIndexFieldIds={cropIndexFieldIds}
+          showFieldFills={showFieldFills}
+        />
+        <CropIndexImageOverlays
+          results={cropIndexResults}
+          features={cropIndexFeatures}
+          visible={showCropIndexImages}
+        />
         <MapPlaceSearch onPlaceSelect={onPlaceSelect} />
         <FitBounds bounds={bounds} />
       </MapContainer>
 
-      <FieldDelineationPanel />
+      {showFieldDelineationPanel && <FieldDelineationPanel />}
 
       {district && (
         <button
@@ -182,7 +212,7 @@ export default function MaharashtraMap({ heightClass = "h-[min(62vh,560px)]" }) 
         </button>
       )}
 
-      {outlinesLoading && <SatelliteScanLoader />}
+      {(outlinesLoading || indexCalculationLoading) && <SatelliteScanLoader />}
     </div>
   );
 }
