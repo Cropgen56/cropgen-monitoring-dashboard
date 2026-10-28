@@ -23,7 +23,7 @@ function downloadGeoJson(data, filename) {
 /** Crop monitoring workspace: satellite map with field detection, and the detected field list. */
 export default function SurveyPage() {
   const { district } = useAgriPlatform();
-  const { saved, village, fields } = useFieldDelineationContext();
+  const { saved, village, fields, openSaved } = useFieldDelineationContext();
   const [fieldClassifications, setFieldClassifications] = useState(null);
   const [classificationInsights, setClassificationInsights] = useState(null);
   const [selectedField, setSelectedField] = useState(null);
@@ -73,7 +73,11 @@ export default function SurveyPage() {
       detectionId,
       village: detection?.village,
     });
-  }, [saved]);
+    // A field from another saved detection opens that detection (and its village), so the
+    // classification panel works on the farms the user is looking at.
+    const activeDetectionId = fields?.features?.[0]?.properties?.detectionId;
+    if (detection && String(activeDetectionId ?? "") !== String(detectionId)) openSaved(detection.id);
+  }, [saved, fields, openSaved]);
 
   const exportFields = () =>
     downloadGeoJson(

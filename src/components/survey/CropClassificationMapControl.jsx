@@ -226,7 +226,8 @@ export default function CropClassificationMapControl({
 
         {!features.length && (
           <p className="text-[10px] leading-relaxed text-gray-500">
-            First select a village and run boundary delineation using the map panel.
+            Select a village and detect its fields, or click a saved village (or any detected field on the
+            map) to open it.
           </p>
         )}
 

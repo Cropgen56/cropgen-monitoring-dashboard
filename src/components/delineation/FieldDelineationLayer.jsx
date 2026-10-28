@@ -43,7 +43,7 @@ function fieldColor(feature, fieldClassifications, classificationDetectionId) {
     !classificationDetectionId ||
     String(feature.properties?.detectionId ?? "") === String(classificationDetectionId);
   if (prediction?.best_crop && belongsToClassifiedRun) {
-    return cropClassificationColor(prediction.best_crop);
+    return { color: cropClassificationColor(prediction.best_crop), classified: true };
   }
 
   const id = feature.properties?.field_id;
@@ -52,17 +52,18 @@ function fieldColor(feature, fieldClassifications, classificationDetectionId) {
     ? Math.floor(numericId - 1)
     : Array.from(String(id ?? JSON.stringify(feature.geometry?.coordinates?.[0]?.[0] ?? "")))
         .reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) >>> 0, 0);
-  return FIELD_COLORS[index % FIELD_COLORS.length];
+  return { color: FIELD_COLORS[index % FIELD_COLORS.length], classified: false };
 }
 
 function fieldStyle(feature, fieldClassifications, classificationDetectionId) {
-  const color = fieldColor(feature, fieldClassifications, classificationDetectionId);
+  const { color, classified } = fieldColor(feature, fieldClassifications, classificationDetectionId);
   return {
     color: color.stroke,
     weight: 1.6,
     opacity: 0.95,
     fillColor: color.fill,
-    fillOpacity: 0.52,
+    // Classified fields are coloured by crop, so fill them more strongly to read as crop groups.
+    fillOpacity: classified ? 0.68 : 0.52,
   };
 }
 
@@ -145,7 +146,7 @@ function indexSection(indexResult) {
 function fieldHoverCard(feature, prediction, indexResult = null, insight = null) {
   const p = feature.properties || {};
   const name = escapeHtml(p.field_id != null ? `Farm / Field ${p.field_id}` : "Farm boundary");
-  const village = escapeHtml(p.village || "Selected village");
+  const village = escapeHtml(p.village || (p.source === "upload" ? p.name || "Uploaded file" : "Selected village"));
   const location = [p.taluka, toOutlineDistrict(p.district)].filter(Boolean).map(escapeHtml).join(" · ");
   const areaHa = Number(p.area_ha);
   const perimeter = Number(p.perimeter_m);
@@ -197,7 +198,7 @@ function fieldHoverCard(feature, prediction, indexResult = null, insight = null)
           : "Detected",
   );
   const footer = [
-    "AI-detected farm boundary",
+    p.source === "upload" ? "Uploaded farm boundary" : "AI-detected farm boundary",
     prediction?.best_crop && "crop classified",
     indexResult && `${indexResult.index_name || "index"} calculated`,
     "Click for details",
@@ -389,6 +390,10 @@ export default function FieldDelineationLayer({
   fieldColorByKey = EMPTY_INDEX_MAP,
   /** Map of field key → village-analysis farm record; adds an analysis section to hover cards. */
   fieldInsightsByKey = EMPTY_INDEX_MAP,
+  /** Farm polygons from outside detection (an uploaded GeoJSON), drawn like detected fields. */
+  extraFields = null,
+  /** Changes whenever `extraFields` is replaced (react-leaflet's <GeoJSON> ignores new data). */
+  extraFieldsKey = "",
 }) {
   const map = useMap();
   const { step, village, area, fields, savedFields, saved, drawSession, pickVillageAt, submitArea } =
@@ -424,6 +429,14 @@ export default function FieldDelineationLayer({
   }, [map, fields]);
 
   useEffect(() => {
+    if (!extraFields?.features?.length) return undefined;
+    const b = L.geoJSON(extraFields).getBounds();
+    // After the page's district FitBounds, which runs on mount.
+    const t = setTimeout(() => b.isValid() && map.fitBounds(b, { padding: [24, 24] }), 150);
+    return () => clearTimeout(t);
+  }, [map, extraFields]);
+
+  useEffect(() => {
     if (step !== "draw") return undefined;
     const handler = new L.Draw.Polygon(map, {
       allowIntersection: false,
@@ -454,6 +467,36 @@ export default function FieldDelineationLayer({
     .map(([key, result]) => `${key}:${result?.index_name ?? ""}:${result?.date ?? ""}`)
     .sort()
     .join("|");
+  const styleField = (feature) => {
+    let style = fieldStyle(feature, fieldClassifications, classificationDetectionId);
+    const hasCropIndexImage = cropIndexByField.has(cropIndexFeatureKey(feature));
+    if (!showFieldFills || hasCropIndexImage) style.fillOpacity = 0;
+    const analysisColor = fieldColorByKey.get(cropIndexFeatureKey(feature));
+    style = applyAnalysisColor(style, analysisColor);
+    const key = `${String(feature.properties?.detectionId ?? "")}:${String(feature.properties?.field_id ?? "")}`;
+    return key === selectedFieldKey
+      ? {
+          ...style,
+          color: "#fef08a",
+          weight: 3.2,
+          fillOpacity: analysisColor ? style.fillOpacity : showFieldFills && !hasCropIndexImage ? 0.68 : 0,
+        }
+      : style;
+  };
+  const bindField = (feature, layer) =>
+    bindFieldTooltip(
+      feature,
+      layer,
+      fieldClassifications,
+      classificationDetectionId,
+      selectedFieldKey,
+      onFieldSelect,
+      cropIndexByField.get(cropIndexFeatureKey(feature)) || null,
+      showFieldFills,
+      fieldColorByKey.get(cropIndexFeatureKey(feature)),
+      fieldInsightsByKey.get(cropIndexFeatureKey(feature)) || null,
+    );
+  const layerStateKey = `${classificationDetectionId}-${classificationKey}-${selectedFieldKey}-${cropIndexKey}-${analysisKey}`;
   return (
     <>
       {village && (
@@ -469,38 +512,19 @@ export default function FieldDelineationLayer({
       )}
       {savedFields.features.length > 0 && (
         <GeoJSON
-          key={`dl-fields-${saved.map((r) => r.id).join(",")}-${classificationDetectionId}-${classificationKey}-${selectedFieldKey}-${cropIndexKey}-${analysisKey}`}
+          key={`dl-fields-${saved.map((r) => r.id).join(",")}-${layerStateKey}`}
           data={savedFields}
-          style={(feature) => {
-            let style = fieldStyle(feature, fieldClassifications, classificationDetectionId);
-            const hasCropIndexImage = cropIndexByField.has(cropIndexFeatureKey(feature));
-            if (!showFieldFills || hasCropIndexImage) style.fillOpacity = 0;
-            const analysisColor = fieldColorByKey.get(cropIndexFeatureKey(feature));
-            style = applyAnalysisColor(style, analysisColor);
-            const key = `${String(feature.properties?.detectionId ?? "")}:${String(feature.properties?.field_id ?? "")}`;
-            return key === selectedFieldKey
-              ? {
-                  ...style,
-                  color: "#fef08a",
-                  weight: 3.2,
-                  fillOpacity: analysisColor ? style.fillOpacity : showFieldFills && !hasCropIndexImage ? 0.68 : 0,
-                }
-              : style;
-          }}
-          onEachFeature={(feature, layer) =>
-            bindFieldTooltip(
-              feature,
-              layer,
-              fieldClassifications,
-              classificationDetectionId,
-              selectedFieldKey,
-              onFieldSelect,
-              cropIndexByField.get(cropIndexFeatureKey(feature)) || null,
-              showFieldFills,
-              fieldColorByKey.get(cropIndexFeatureKey(feature)),
-              fieldInsightsByKey.get(cropIndexFeatureKey(feature)) || null,
-            )
-          }
+          style={styleField}
+          onEachFeature={bindField}
+          renderer={fieldsRenderer}
+        />
+      )}
+      {extraFields?.features?.length > 0 && (
+        <GeoJSON
+          key={`dl-extra-${extraFieldsKey}-${layerStateKey}`}
+          data={extraFields}
+          style={styleField}
+          onEachFeature={bindField}
           renderer={fieldsRenderer}
         />
       )}

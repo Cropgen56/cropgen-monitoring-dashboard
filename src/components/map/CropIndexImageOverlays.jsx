@@ -9,13 +9,14 @@ import {
   cropIndexResultsMappedToFeatures,
 } from "../../utils/cropIndexImages";
 
-function FieldImage({ result, feature, index, opacity }) {
+function FieldImage({ result, feature, index, opacity, idPrefix }) {
   const source = cropIndexImageSource(result?.image_base64, result?.image_format);
   const bounds = cropIndexFeatureBounds(feature);
   const clipPath = cropIndexGeometryPathInBounds(feature, bounds);
   if (!source || !bounds || !clipPath) return null;
 
-  const clipId = `crop-index-field-clip-${index}`;
+  // Clip ids are document-wide, so each map gets its own prefix.
+  const clipId = `${idPrefix}-clip-${index}`;
   const viewBoxSize = 1000;
 
   return (
@@ -60,6 +61,7 @@ export default function CropIndexImageOverlays({
   features = [],
   visible = true,
   opacity = 0.86,
+  idPrefix = "crop-index-field",
 }) {
   if (!visible || !Array.isArray(results) || !Array.isArray(features)) return null;
 
@@ -76,6 +78,7 @@ export default function CropIndexImageOverlays({
           feature={feature}
           index={resultIndex}
           opacity={opacity}
+          idPrefix={idPrefix}
         />
       ))}
     </Pane>

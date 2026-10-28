@@ -12,7 +12,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { ALERT_RULES, CHANGE_BANDS, COLOR_MODES, HEALTH_BANDS, SEVERITY } from "../../utils/villageAnalysis";
+import { ALERT_RULES, CHANGE_BANDS, COLOR_MODES, HEALTH_BANDS, SEVERITY, farmLabel } from "../../utils/villageAnalysis";
 import { downloadFarmsCsv, downloadFarmsGeoJson, openPrintableReport } from "../../utils/villageReport";
 
 const fmt = (v, d = 2) => (Number.isFinite(v) ? Number(v).toFixed(d) : "—");
@@ -244,7 +244,7 @@ export default function VillageAnalysis({ analysis, meta, loading, error, colorM
                         >
                           <div className="flex items-center gap-2 text-[11px]">
                             <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: SEVERITY[f.severity].color }} />
-                            <span className="flex-1 font-semibold text-gray-100">Farm {f.fieldId}</span>
+                            <span className="min-w-0 flex-1 truncate font-semibold text-gray-100">{farmLabel(f, analysis)}</span>
                             <span className="tabular-nums text-gray-500">{fmt(f.areaHa, 2)} ha</span>
                           </div>
                           <p className="mt-0.5 pl-4 text-[10px] text-gray-400">

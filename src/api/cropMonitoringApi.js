@@ -11,16 +11,28 @@ async function postJson(path, payload, signal) {
   if (!CROP_MONITORING_API_KEY) {
     throw new Error("Crop monitoring API key is not configured. Set VITE_CROP_MONITORING_API_KEY and restart the app.");
   }
-  const response = await fetch(`${normalizeBaseUrl(CROP_MONITORING_API_BASE_URL)}${path}`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "x-api-key": CROP_MONITORING_API_KEY,
-    },
-    body: JSON.stringify(payload),
-    signal,
-  });
+  let response;
+  try {
+    response = await fetch(`${normalizeBaseUrl(CROP_MONITORING_API_BASE_URL)}${path}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "x-api-key": CROP_MONITORING_API_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal,
+    });
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    // The browser only says "Failed to fetch" when the connection drops, e.g. the proxy gave
+    // up on a slow or very large request (its error page carries no CORS headers).
+    const networkError = new Error(
+      "Crop monitoring API: the connection dropped (the request may have been too slow or too large).",
+    );
+    networkError.network = true;
+    throw networkError;
+  }
 
   let body;
   try {
@@ -52,8 +64,121 @@ function validateRequest(geojson, startDate, endDate) {
   }
 }
 
-export function fetchPolygonAvailability({ geojson, startDate, endDate, signal }) {
+/**
+ * Large collections are sent in chunks and the responses merged: the server takes roughly
+ * 0.6–1.4 s per field, and at 256 px each field's image adds ~26 KB, so one request for a
+ * village of 1000+ fields ran for many minutes, returned ~27 MB and was dropped by the proxy.
+ * Image requests are therefore chunked by pixels; stats-only (small image) runs by count.
+ */
+const MULTI_CHUNK_MAX_FEATURES = 1500;
+const MULTI_CHUNK_MIN_FEATURES = 50;
+/** ~100 fields at 256 px (≈2.6 MB, about a minute or two per request). */
+const MULTI_CHUNK_PIXEL_BUDGET = 100 * 256 * 256;
+const MULTI_CHUNK_CONCURRENCY = 3;
+
+function chunkSizeFor(size) {
+  if (!size) return MULTI_CHUNK_MAX_FEATURES;
+  const bySize = Math.floor(MULTI_CHUNK_PIXEL_BUDGET / (size * size));
+  return Math.max(MULTI_CHUNK_MIN_FEATURES, Math.min(MULTI_CHUNK_MAX_FEATURES, bySize));
+}
+
+function chunkCollection(geojson, chunkSize) {
+  const { features } = geojson;
+  const chunks = [];
+  for (let start = 0; start < features.length; start += chunkSize) {
+    chunks.push({ offset: start, geojson: { ...geojson, features: features.slice(start, start + chunkSize) } });
+  }
+  return chunks;
+}
+
+/** Runs chunks a few at a time; a dropped connection is retried once. Returns settled results. */
+async function mapChunks(chunks, run, signal) {
+  const out = new Array(chunks.length);
+  let next = 0;
+  const attempt = async (chunk) => {
+    try {
+      return await run(chunk);
+    } catch (error) {
+      if (!error?.network || signal?.aborted) throw error;
+      return run(chunk);
+    }
+  };
+  const worker = async () => {
+    while (next < chunks.length && !signal?.aborted) {
+      const i = next++;
+      try {
+        out[i] = { status: "fulfilled", value: await attempt(chunks[i]) };
+      } catch (reason) {
+        out[i] = { status: "rejected", reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(MULTI_CHUNK_CONCURRENCY, chunks.length) }, worker));
+  return out;
+}
+
+/** Every chunk must succeed for dates; for index results, failed chunks only leave those fields empty. */
+function settledValues(settled, chunks, { allowPartial }) {
+  const failed = settled.map((r, i) => (r?.status === "fulfilled" ? null : { chunk: chunks[i], reason: r?.reason }))
+    .filter(Boolean);
+  if (failed.length === settled.length || (failed.length && !allowPartial)) {
+    throw failed[0].reason || new Error("Crop monitoring API request failed.");
+  }
+  return {
+    values: settled.map((r) => (r?.status === "fulfilled" ? r.value : null)),
+    failedFeatures: failed.reduce((n, f) => n + f.chunk.geojson.features.length, 0),
+  };
+}
+
+/** Same date across chunks: add up covered fields; cloud cover weighted by fields covered. */
+function mergeAvailability(responses) {
+  const byDate = new Map();
+  let total = 0;
+  for (const response of responses) {
+    total += Number(response?.total_features) || 0;
+    for (const item of response?.items || []) {
+      if (!item?.date) continue;
+      const count = Number(item.feature_count) || 0;
+      const cloud = Number(item.cloud_cover);
+      const prev = byDate.get(item.date) || { ...item, feature_count: 0, cloudWeight: 0, cloudSum: 0 };
+      prev.feature_count += count;
+      if (Number.isFinite(cloud)) {
+        prev.cloudSum += cloud * Math.max(count, 1);
+        prev.cloudWeight += Math.max(count, 1);
+      }
+      byDate.set(item.date, prev);
+    }
+  }
+  const items = [...byDate.values()].map(({ cloudSum, cloudWeight, ...item }) => ({
+    ...item,
+    cloud_cover: cloudWeight ? cloudSum / cloudWeight : item.cloud_cover,
+  }));
+  return { ...responses[0], items, total_features: total };
+}
+
+/** Results are named "feature-N" by position in their own request; renumber them for the whole collection. */
+function mergeIndexResults(responses, chunks, failedFeatures) {
+  const results = responses.flatMap((response, i) =>
+    (response?.results || []).map((r) => {
+      const m = /^feature-(\d+)$/.exec(String(r?.id ?? ""));
+      return m ? { ...r, id: `feature-${Number(m[1]) + chunks[i].offset}` } : r;
+    }),
+  );
+  const first = responses.find(Boolean);
+  return { ...first, results, ...(failedFeatures ? { failed_features: failedFeatures } : {}) };
+}
+
+export async function fetchPolygonAvailability({ geojson, startDate, endDate, signal }) {
   validateRequest(geojson, startDate, endDate);
+  if (geojson.features.length > MULTI_CHUNK_MAX_FEATURES) {
+    const chunks = chunkCollection(geojson, MULTI_CHUNK_MAX_FEATURES);
+    const settled = await mapChunks(
+      chunks,
+      (chunk) => fetchPolygonAvailability({ geojson: chunk.geojson, startDate, endDate, signal }),
+      signal,
+    );
+    return mergeAvailability(settledValues(settled, chunks, { allowPartial: false }).values);
+  }
   return postJson(
     "/multi/availability/",
     {
@@ -68,9 +193,20 @@ export function fetchPolygonAvailability({ geojson, startDate, endDate, signal }
 }
 
 /** `size`: image px per field. Analysis-only runs pass a small size (they use `stats`, not the image). */
-export function calculatePolygonIndex({ geojson, date, indexName, signal, size = 256 }) {
+export async function calculatePolygonIndex({ geojson, date, indexName, signal, size = 256 }) {
   validateRequest(geojson, date, date);
   if (!String(indexName || "").trim()) throw new Error("Choose an index to calculate.");
+  const chunkSize = chunkSizeFor(size);
+  if (geojson.features.length > chunkSize) {
+    const chunks = chunkCollection(geojson, chunkSize);
+    const settled = await mapChunks(
+      chunks,
+      (chunk) => calculatePolygonIndex({ geojson: chunk.geojson, date, indexName, signal, size }),
+      signal,
+    );
+    const { values, failedFeatures } = settledValues(settled, chunks, { allowPartial: true });
+    return mergeIndexResults(values, chunks, failedFeatures);
+  }
   return postJson(
     "/multi/calculate/index",
     {

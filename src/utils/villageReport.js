@@ -2,7 +2,7 @@
  * Exports for the village crop analysis: CSV and GeoJSON of every farm, and a printable
  * report page (opened in a new tab; the browser's print dialog saves it as PDF).
  */
-import { ALERT_RULES, CHANGE_BANDS, HEALTH_BANDS, SEVERITY } from "./villageAnalysis";
+import { ALERT_RULES, CHANGE_BANDS, HEALTH_BANDS, SEVERITY, farmLabel } from "./villageAnalysis";
 
 const num = (v, d = 3) => (Number.isFinite(v) ? Number(v).toFixed(d) : "");
 
@@ -95,12 +95,12 @@ export function openPrintableReport(analysis, meta) {
   const legend = (bands) =>
     bands.map((b) => `<span class="lg"><i style="background:${b.color}"></i>${html(b.label)}</span>`).join("");
   const alertRows = analysis.alerted.slice(0, 60).map((f) => `<tr>
-      <td>Farm ${html(f.fieldId)}</td><td>${num(f.areaHa, 2)}</td>
+      <td>${html(farmLabel(f, analysis))}</td><td>${num(f.areaHa, 2)}</td>
       <td><b style="color:${SEVERITY[f.severity].color}">${SEVERITY[f.severity].label}</b></td>
       <td>${f.alerts.map((a) => `${html(a.type)} <span class="mut">(${html(a.detail)})</span>`).join("<br>")}</td>
       <td>${num(f.ndvi, 2)}</td><td>${Number.isFinite(f.changePct) ? `${f.changePct.toFixed(0)}%` : "—"}</td></tr>`).join("");
   const farmRows = analysis.farms.map((f) => `<tr>
-      <td>${html(f.fieldId)}</td><td>${num(f.areaHa, 2)}</td><td>${num(f.ndvi, 2)}</td>
+      <td>${html(farmLabel(f, analysis))}</td><td>${num(f.areaHa, 2)}</td><td>${num(f.ndvi, 2)}</td>
       <td>${f.health ? `<i class="dot" style="background:${f.health.color}"></i>${html(f.health.label)}` : "—"}</td>
       <td>${num(f.ndviPrev, 2) || "—"}</td><td>${Number.isFinite(f.changePct) ? `${f.changePct.toFixed(0)}%` : "—"}</td>
       <td>${num(f.ndmi, 2) || "—"}</td><td>${f.severity ? SEVERITY[f.severity].label : ""}</td></tr>`).join("");

@@ -60,7 +60,11 @@ async function fetchLocations(path, params, { signal } = {}) {
     timeoutMs: VILLAGE_FETCH_MS,
     signal,
   });
-  if (!res.ok) throw new Error(await errorDetail(res));
+  if (!res.ok) {
+    const error = new Error(await errorDetail(res));
+    error.status = res.status;
+    throw error;
+  }
   return res.json();
 }
 

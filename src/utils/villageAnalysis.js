@@ -184,6 +184,8 @@ export function analyseVillage(features, { ndvi, ndviPrev, ndmi }) {
   return {
     farms,
     byKey: new Map(farms.map((f) => [f.key, f])),
+    // Field ids restart in every village, so labels name the village when farms span several.
+    multiVillage: new Set(farms.map((f) => f.village || "")).size > 1,
     summary: {
       totalFarms: features.length,
       measuredFarms: measured.length,
@@ -205,6 +207,12 @@ export function analyseVillage(features, { ndvi, ndviPrev, ndmi }) {
 }
 
 /** Pick the compare date: newest clear, full-coverage date at least `minGapDays` before `date`. */
+/** "Field #12", or "Field #12 · Adad" when the analysis covers several villages (whole taluka). */
+export function farmLabel(farm, analysis) {
+  const id = `Field #${farm?.fieldId ?? "—"}`;
+  return analysis?.multiVillage && farm?.village ? `${id} · ${farm.village}` : id;
+}
+
 export function pickCompareDate(items, totalFeatures, date, { minGapDays = 10, maxCloud = 20 } = {}) {
   if (!date || !Array.isArray(items)) return "";
   const cutoff = new Date(`${date}T00:00:00`);

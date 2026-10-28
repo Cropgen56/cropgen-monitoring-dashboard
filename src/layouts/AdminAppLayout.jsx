@@ -17,7 +17,8 @@ export default function AdminAppLayout() {
   }, [pathname]);
 
   return (
-    <div className="dashboard-shell-bg flex min-h-screen text-[13px] text-gray-200 font-sans antialiased selection:bg-cg-accent/25 selection:text-white">
+    // Fixed-height shell: only <main> scrolls, so the sidebar and top bar stay in view.
+    <div className="dashboard-shell-bg flex h-[100dvh] overflow-hidden text-[13px] text-gray-200 font-sans antialiased selection:bg-cg-accent/25 selection:text-white">
       <DashboardSidebar open={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <DashboardTopBar onOpenMenu={() => setNavOpen(true)} />

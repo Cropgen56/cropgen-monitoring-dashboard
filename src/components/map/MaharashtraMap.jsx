@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { GeoJSON, MapContainer, TileLayer, useMap } from "react-leaflet";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CircleMarker, GeoJSON, MapContainer, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import * as turf from "@turf/turf";
 import { X } from "lucide-react";
@@ -63,6 +63,59 @@ function toLeafletBounds(geojson, pad = 0) {
   }
 }
 
+/** Farms are a few pixels wide below this zoom, so pins mark where they are. */
+const PIN_MAX_ZOOM = 13;
+/** Pins are skipped for very large sets (whole talukas), where they would only add clutter. */
+const PIN_MAX_FIELDS = 3000;
+
+/**
+ * Zoomed out, small farms vanish: one pin per farm (coloured like the farm in health / change
+ * mode) shows where they are, and clicking a pin selects the farm like clicking its polygon.
+ */
+function FieldPins({ features, colorByKey, selectedFieldKey, onFieldSelect, renderer }) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) });
+  const pins = useMemo(
+    () =>
+      features.length > PIN_MAX_FIELDS
+        ? []
+        : features.map((feature) => {
+            const [w, s, e, n] = turf.bbox(feature);
+            const p = feature.properties || {};
+            return {
+              feature,
+              center: [(s + n) / 2, (w + e) / 2],
+              key: cropIndexFeatureKey(feature),
+              selectKey: `${String(p.detectionId ?? "")}:${String(p.field_id ?? "")}`,
+              label: `Field #${p.field_id ?? "—"}${p.village ? ` · ${p.village}` : ""}`,
+            };
+          }),
+    [features],
+  );
+  if (zoom > PIN_MAX_ZOOM || !pins.length) return null;
+  return pins.map((pin) => {
+    const selected = pin.selectKey === selectedFieldKey;
+    return (
+      <CircleMarker
+        key={pin.key}
+        center={pin.center}
+        radius={selected ? 7 : 5}
+        renderer={renderer}
+        pathOptions={{
+          color: selected ? "#fef08a" : "#0f172a",
+          weight: selected ? 2.5 : 1.2,
+          fillColor: colorByKey?.get(pin.key) || "#a3e635",
+          fillOpacity: 0.95,
+        }}
+        eventHandlers={{ click: () => onFieldSelect?.({ key: pin.selectKey, feature: pin.feature }) }}
+      >
+        <Tooltip direction="top" offset={[0, -6]}>{pin.label} · click to open</Tooltip>
+      </CircleMarker>
+    );
+  });
+}
+
 /** Fits the map whenever the target bounds change (state view ↔ selected district). */
 /** Zooms to one feature (e.g. the farm a report is about) whenever it changes. */
 function FocusFeature({ feature }) {
@@ -110,6 +163,7 @@ export default function MaharashtraMap({
   cropIndexResults = [],
   cropIndexFeatures = [],
   showCropIndexImages = true,
+  cropIndexOpacity = 0.86,
   showFieldFills = true,
   /** Page-level long task shown over the map: { kind, message?, pct?, startedAt? } (see SatelliteScanLoader). */
   loadingTask = null,
@@ -120,6 +174,9 @@ export default function MaharashtraMap({
   fieldInsightsByKey,
   /** Optional map legend: { title, items: [{ label, color }] } (e.g. village analysis colouring). */
   legend = null,
+  /** Farm polygons from an uploaded file, drawn alongside detected fields. */
+  uploadedFields = null,
+  uploadedFieldsKey = "",
 }) {
   const { district, setDistrict, maharashtraOutline, maharashtraDistrictsOutline, outlinesLoading } =
     useAgriPlatform();
@@ -247,11 +304,21 @@ export default function MaharashtraMap({
           onFieldSelect={onFieldSelect}
           cropIndexByField={cropIndexByField}
           showFieldFills={showFieldFills}
+          extraFields={uploadedFields}
+          extraFieldsKey={uploadedFieldsKey}
+        />
+        <FieldPins
+          features={cropIndexFeatures}
+          colorByKey={fieldColorByKey}
+          selectedFieldKey={selectedFieldKey}
+          onFieldSelect={onFieldSelect}
+          renderer={canvasRenderer}
         />
         <CropIndexImageOverlays
           results={cropIndexResults}
           features={cropIndexFeatures}
           visible={showCropIndexImages}
+          opacity={cropIndexOpacity}
         />
         {showPlaceSearch && <MapPlaceSearch onPlaceSelect={onPlaceSelect} />}
         <FocusFeature feature={focusFeature} />
