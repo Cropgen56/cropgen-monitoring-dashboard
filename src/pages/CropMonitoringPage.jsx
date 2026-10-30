@@ -627,7 +627,7 @@ export default function CropMonitoringPage() {
         .filter((i) => i?.date)
         .sort((a, b) => b.date.localeCompare(a.date));
       const total = Number(response?.total_features) || polygonCount;
-      setAvailability({ loading: false, items, total, error: "" });
+      setAvailability({ loading: false, items, total, failed: Number(response?.failed_features) || 0, error: "" });
       chooseDate(pickDefaultDate(items, total), items, total);
     } catch (error) {
       if (!controller.signal.aborted) {
@@ -1049,6 +1049,12 @@ export default function CropMonitoringPage() {
                   );
                 })}
               </ul>
+            )}
+            {availability.failed > 0 && (
+              <p className="text-[10px] text-amber-200">
+                {availability.failed.toLocaleString("en-IN")} fields could not be checked for dates (the server
+                failed for them). Search again to retry them.
+              </p>
             )}
             {selectedAvailability && selectedAvailability.feature_count < availability.total && (
               <p className="text-[10px] text-amber-200">

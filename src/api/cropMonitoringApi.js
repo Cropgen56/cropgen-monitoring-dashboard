@@ -7,6 +7,16 @@ function normalizeBaseUrl(baseUrl) {
   return baseUrl.replace(/\/+$/, "");
 }
 
+/** Gateway/proxy hiccups: the same request is worth sending again. */
+const RETRYABLE_STATUS = new Set([408, 429, 502, 503, 504]);
+
+function httpError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  error.retryable = RETRYABLE_STATUS.has(status);
+  return error;
+}
+
 async function postJson(path, payload, signal) {
   if (!CROP_MONITORING_API_KEY) {
     throw new Error("Crop monitoring API key is not configured. Set VITE_CROP_MONITORING_API_KEY and restart the app.");
@@ -31,6 +41,7 @@ async function postJson(path, payload, signal) {
       "Crop monitoring API: the connection dropped (the request may have been too slow or too large).",
     );
     networkError.network = true;
+    networkError.retryable = true;
     throw networkError;
   }
 
@@ -38,11 +49,8 @@ async function postJson(path, payload, signal) {
   try {
     body = await response.json();
   } catch {
-    throw new Error(
-      response.ok
-        ? "Crop monitoring API returned an invalid JSON response."
-        : `Crop monitoring API request failed (HTTP ${response.status}).`,
-    );
+    if (response.ok) throw new Error("Crop monitoring API returned an invalid JSON response.");
+    throw httpError(`Crop monitoring API request failed (HTTP ${response.status}).`, response.status);
   }
   if (!response.ok) {
     const detail = typeof body?.detail === "string"
@@ -50,7 +58,7 @@ async function postJson(path, payload, signal) {
       : Array.isArray(body?.detail)
         ? body.detail.map((item) => item?.msg).filter(Boolean).join("; ")
         : `HTTP ${response.status}`;
-    throw new Error(`Crop monitoring API: ${detail}`);
+    throw httpError(`Crop monitoring API: ${detail}`, response.status);
   }
   return body;
 }
@@ -65,16 +73,24 @@ function validateRequest(geojson, startDate, endDate) {
 }
 
 /**
- * Large collections are sent in chunks and the responses merged: the server takes roughly
- * 0.6–1.4 s per field, and at 256 px each field's image adds ~26 KB, so one request for a
- * village of 1000+ fields ran for many minutes, returned ~27 MB and was dropped by the proxy.
+ * Any number of fields is handled by sending chunks and merging the responses: the server takes
+ * roughly 0.6–1.4 s per field, and at 256 px each field's image adds ~26 KB, so one request for
+ * a village of 1000+ fields ran for many minutes, returned ~27 MB and was dropped by the proxy.
  * Image requests are therefore chunked by pixels; stats-only (small image) runs by count.
  */
 const MULTI_CHUNK_MAX_FEATURES = 1500;
 const MULTI_CHUNK_MIN_FEATURES = 50;
 /** ~100 fields at 256 px (≈2.6 MB, about a minute or two per request). */
 const MULTI_CHUNK_PIXEL_BUDGET = 100 * 256 * 256;
-const MULTI_CHUNK_CONCURRENCY = 3;
+/** Requests in flight across every run on the page (one click starts up to four index runs). */
+const MULTI_CONCURRENCY = 4;
+/** Tries per chunk for gateway errors and dropped connections; pieces of a split chunk get fewer. */
+const MULTI_ATTEMPTS = 3;
+const MULTI_SPLIT_ATTEMPTS = 2;
+/** After this many connection/gateway failures in a row the server is treated as down: stop retrying and splitting. */
+const MULTI_GIVE_UP_STREAK = 6;
+/** Wait before re-asking for fields the server reported as failed upstream (provider timeouts). */
+const MULTI_FIELD_RETRY_DELAY_MS = 2000;
 
 function chunkSizeFor(size) {
   if (!size) return MULTI_CHUNK_MAX_FEATURES;
@@ -82,66 +98,182 @@ function chunkSizeFor(size) {
   return Math.max(MULTI_CHUNK_MIN_FEATURES, Math.min(MULTI_CHUNK_MAX_FEATURES, bySize));
 }
 
+/** A chunk is some of the collection's features plus their positions (`indices`) in the whole collection. */
+function pickChunk(chunk, positions) {
+  return {
+    indices: positions.map((p) => chunk.indices[p]),
+    geojson: { ...chunk.geojson, features: positions.map((p) => chunk.geojson.features[p]) },
+  };
+}
+
+function range(start, end) {
+  return Array.from({ length: end - start }, (_, i) => start + i);
+}
+
 function chunkCollection(geojson, chunkSize) {
-  const { features } = geojson;
+  const whole = { indices: range(0, geojson.features.length), geojson };
   const chunks = [];
-  for (let start = 0; start < features.length; start += chunkSize) {
-    chunks.push({ offset: start, geojson: { ...geojson, features: features.slice(start, start + chunkSize) } });
+  for (let start = 0; start < geojson.features.length; start += chunkSize) {
+    chunks.push(pickChunk(whole, range(start, Math.min(start + chunkSize, geojson.features.length))));
   }
   return chunks;
 }
 
-/** Runs chunks a few at a time; a dropped connection is retried once. Returns settled results. */
-async function mapChunks(chunks, run, signal) {
-  const out = new Array(chunks.length);
-  let next = 0;
-  const attempt = async (chunk) => {
-    try {
-      return await run(chunk);
-    } catch (error) {
-      if (!error?.network || signal?.aborted) throw error;
-      return run(chunk);
-    }
-  };
-  const worker = async () => {
-    while (next < chunks.length && !signal?.aborted) {
-      const i = next++;
-      try {
-        out[i] = { status: "fulfilled", value: await attempt(chunks[i]) };
-      } catch (reason) {
-        out[i] = { status: "rejected", reason };
-      }
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(MULTI_CHUNK_CONCURRENCY, chunks.length) }, worker));
-  return out;
+/** The ids the server gives these features (feature_collection.py): own id, else position, made unique. */
+function serverFeatureIds(features) {
+  const seen = new Map();
+  return features.map((feature, i) => {
+    const props = feature?.properties || {};
+    const own = [feature?.id, props.id, props.name].find((v) => v != null && String(v).trim());
+    const id = own != null ? String(own) : `feature-${i + 1}`;
+    const n = (seen.get(id) || 0) + 1;
+    seen.set(id, n);
+    return n > 1 ? `${id}-${n}` : id;
+  });
 }
 
-/** Every chunk must succeed for dates; for index results, failed chunks only leave those fields empty. */
-function settledValues(settled, chunks, { allowPartial }) {
-  const failed = settled.map((r, i) => (r?.status === "fulfilled" ? null : { chunk: chunks[i], reason: r?.reason }))
-    .filter(Boolean);
-  if (failed.length === settled.length || (failed.length && !allowPartial)) {
-    throw failed[0].reason || new Error("Crop monitoring API request failed.");
+let activeRequests = 0;
+const waitingRequests = [];
+
+/** Runs `fn` once one of the MULTI_CONCURRENCY slots is free; a finished request hands its slot on. */
+async function withSlot(fn) {
+  if (activeRequests < MULTI_CONCURRENCY) activeRequests += 1;
+  else await new Promise((resolve) => waitingRequests.push(resolve));
+  try {
+    return await fn();
+  } finally {
+    const next = waitingRequests.shift();
+    if (next) next();
+    else activeRequests -= 1;
   }
-  return {
-    values: settled.map((r) => (r?.status === "fulfilled" ? r.value : null)),
-    failedFeatures: failed.reduce((n, f) => n + f.chunk.geojson.features.length, 0),
-  };
+}
+
+function pause(ms, signal) {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
+function abortError(signal) {
+  return signal.reason ?? new DOMException("The request was aborted.", "AbortError");
+}
+
+/** Worth splitting: the proxy refused the size, the server crashed, or one feature's geometry was rejected. */
+function isSplittable(error) {
+  return Boolean(
+    error?.retryable
+      || error?.status === 413
+      || error?.status === 500
+      || (error?.status === 400 && /^Crop monitoring API: Feature /.test(error.message)),
+  );
+}
+
+/**
+ * Sends one chunk. Gateway errors and dropped connections are retried with backoff. A chunk that
+ * still fails, or fails because of its size or one bad field, is split in half, so in the end only
+ * the fields that really fail are left without a result. Fields the server answered with an
+ * upstream error (5xx in `errors`, e.g. a provider timeout) are asked for once more.
+ * Returns a flat list of `{ chunk, value }` / `{ chunk, reason }` parts.
+ */
+async function runChunk(chunk, request, signal, breaker, attempts = MULTI_ATTEMPTS, isRetry = false) {
+  let error;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (attempt) await pause(1000 * 3 ** (attempt - 1), signal);
+    if (signal?.aborted) throw abortError(signal);
+    try {
+      // Checked again once a slot frees up: the run may have been cancelled while this chunk queued.
+      const value = await withSlot(() => {
+        if (signal?.aborted) throw abortError(signal);
+        return request(chunk.geojson);
+      });
+      breaker.streak = 0;
+      return isRetry ? [{ chunk, value }] : retryFieldErrors({ chunk, value }, request, signal, breaker);
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      error = e;
+      // 413/500/400 are answers from a working server: they call for a split, not for giving up.
+      if (!e?.retryable) break;
+      breaker.streak += 1;
+      if (breaker.streak >= MULTI_GIVE_UP_STREAK) break;
+    }
+  }
+  const { features } = chunk.geojson;
+  if (isSplittable(error) && features.length > 1 && breaker.streak < MULTI_GIVE_UP_STREAK) {
+    const half = Math.ceil(features.length / 2);
+    const parts = await Promise.all(
+      [range(0, half), range(half, features.length)]
+        .map((positions) => runChunk(pickChunk(chunk, positions), request, signal, breaker, MULTI_SPLIT_ATTEMPTS, isRetry)),
+    );
+    return parts.flat();
+  }
+  return [{ chunk, reason: error }];
+}
+
+async function retryFieldErrors(part, request, signal, breaker) {
+  const errors = part.value?.errors || [];
+  const transient = new Set(errors.filter((e) => Number(e?.status_code) >= 500).map((e) => String(e.id)));
+  if (!transient.size) return [part];
+  const ids = serverFeatureIds(part.chunk.geojson.features);
+  const positions = ids.flatMap((id, i) => (transient.has(id) ? [i] : []));
+  if (!positions.length) return [part];
+
+  await pause(MULTI_FIELD_RETRY_DELAY_MS, signal);
+  if (signal?.aborted) throw abortError(signal);
+  const retried = (await runChunk(pickChunk(part.chunk, positions), request, signal, breaker, MULTI_SPLIT_ATTEMPTS, true))
+    .filter((p) => "value" in p);
+  // Fields the retry answered (with a result or a fresh error) drop their first error.
+  const answered = new Set(retried.flatMap((p) => p.chunk.indices));
+  const stillFirst = errors.filter((e) => {
+    const position = ids.indexOf(String(e?.id));
+    return position < 0 || !answered.has(part.chunk.indices[position]);
+  });
+  return [{ ...part, value: { ...part.value, errors: stillFirst } }, ...retried];
+}
+
+async function runChunked(geojson, chunkSize, request, signal) {
+  const breaker = { streak: 0 };
+  const parts = await Promise.all(
+    chunkCollection(geojson, chunkSize).map((chunk) => runChunk(chunk, request, signal, breaker)),
+  );
+  return parts.flat();
+}
+
+/** Fails only when nothing succeeded; otherwise failed parts just leave those fields without a result. */
+function settledParts(parts) {
+  const ok = parts.filter((p) => "value" in p);
+  const failed = parts.filter((p) => !("value" in p));
+  if (!ok.length) {
+    throw failed[0]?.reason || new Error("Crop monitoring API request failed.");
+  }
+  return { ok, failedFeatures: failed.reduce((n, p) => n + p.chunk.indices.length, 0) };
+}
+
+/** Ids are "feature-N" by position in their own request; renumber them for the whole collection. */
+function renumberId(id, indices) {
+  const m = /^feature-(\d+)$/.exec(String(id ?? ""));
+  const index = m ? indices[Number(m[1]) - 1] : undefined;
+  return index === undefined ? id : `feature-${index + 1}`;
 }
 
 /** Same date across chunks: add up covered fields; cloud cover weighted by fields covered. */
-function mergeAvailability(responses) {
+function mergeAvailability(parts, failedFeatures) {
   const byDate = new Map();
   let total = 0;
-  for (const response of responses) {
+  for (const { chunk, value: response } of parts) {
     total += Number(response?.total_features) || 0;
     for (const item of response?.items || []) {
       if (!item?.date) continue;
       const count = Number(item.feature_count) || 0;
       const cloud = Number(item.cloud_cover);
-      const prev = byDate.get(item.date) || { ...item, feature_count: 0, cloudWeight: 0, cloudSum: 0 };
+      const prev = byDate.get(item.date) || { ...item, feature_count: 0, feature_ids: [], cloudWeight: 0, cloudSum: 0 };
       prev.feature_count += count;
+      prev.feature_ids.push(...(item.feature_ids || []).map((id) => renumberId(id, chunk.indices)));
       if (Number.isFinite(cloud)) {
         prev.cloudSum += cloud * Math.max(count, 1);
         prev.cloudWeight += Math.max(count, 1);
@@ -153,78 +285,75 @@ function mergeAvailability(responses) {
     ...item,
     cloud_cover: cloudWeight ? cloudSum / cloudWeight : item.cloud_cover,
   }));
-  return { ...responses[0], items, total_features: total };
+  // Failed fields count in the total, so coverage per date stays honest.
+  return {
+    ...parts[0].value,
+    items,
+    total_features: total + failedFeatures,
+    ...(failedFeatures ? { failed_features: failedFeatures } : {}),
+  };
 }
 
-/** Results are named "feature-N" by position in their own request; renumber them for the whole collection. */
-function mergeIndexResults(responses, chunks, failedFeatures) {
-  const results = responses.flatMap((response, i) =>
-    (response?.results || []).map((r) => {
-      const m = /^feature-(\d+)$/.exec(String(r?.id ?? ""));
-      return m ? { ...r, id: `feature-${Number(m[1]) + chunks[i].offset}` } : r;
-    }),
-  );
-  const first = responses.find(Boolean);
-  return { ...first, results, ...(failedFeatures ? { failed_features: failedFeatures } : {}) };
+function mergeIndexResults(parts, failedFeatures, totalFeatures) {
+  const renumber = (list, indices) => (list || []).map((r) => ({ ...r, id: renumberId(r?.id, indices) }));
+  const results = parts.flatMap(({ chunk, value }) => renumber(value?.results, chunk.indices));
+  const errors = parts.flatMap(({ chunk, value }) => renumber(value?.errors, chunk.indices));
+  return {
+    ...parts[0].value,
+    total_features: totalFeatures,
+    succeeded: results.length,
+    failed: errors.length + failedFeatures,
+    results,
+    errors,
+    ...(failedFeatures ? { failed_features: failedFeatures } : {}),
+  };
 }
 
 export async function fetchPolygonAvailability({ geojson, startDate, endDate, signal }) {
   validateRequest(geojson, startDate, endDate);
-  if (geojson.features.length > MULTI_CHUNK_MAX_FEATURES) {
-    const chunks = chunkCollection(geojson, MULTI_CHUNK_MAX_FEATURES);
-    const settled = await mapChunks(
-      chunks,
-      (chunk) => fetchPolygonAvailability({ geojson: chunk.geojson, startDate, endDate, signal }),
+  const parts = await runChunked(
+    geojson,
+    MULTI_CHUNK_MAX_FEATURES,
+    (chunk) => postJson(
+      "/multi/availability/",
+      { geojson: chunk, start_date: startDate, end_date: endDate, provider: "both", satellite: "s2" },
       signal,
-    );
-    return mergeAvailability(settledValues(settled, chunks, { allowPartial: false }).values);
-  }
-  return postJson(
-    "/multi/availability/",
-    {
-      geojson,
-      start_date: startDate,
-      end_date: endDate,
-      provider: "both",
-      satellite: "s2",
-    },
+    ),
     signal,
   );
+  const { ok, failedFeatures } = settledParts(parts);
+  return mergeAvailability(ok, failedFeatures);
 }
 
 /** `size`: image px per field. Analysis-only runs pass a small size (they use `stats`, not the image). */
 export async function calculatePolygonIndex({ geojson, date, indexName, signal, size = 256 }) {
   validateRequest(geojson, date, date);
   if (!String(indexName || "").trim()) throw new Error("Choose an index to calculate.");
-  const chunkSize = chunkSizeFor(size);
-  if (geojson.features.length > chunkSize) {
-    const chunks = chunkCollection(geojson, chunkSize);
-    const settled = await mapChunks(
-      chunks,
-      (chunk) => calculatePolygonIndex({ geojson: chunk.geojson, date, indexName, signal, size }),
+  const parts = await runChunked(
+    geojson,
+    chunkSizeFor(size),
+    (chunk) => postJson(
+      "/multi/calculate/index",
+      {
+        geojson: chunk,
+        date,
+        index_name: indexName,
+        provider: "both",
+        satellite: "s2",
+        // One image per field: Sentinel-2 is 10 m/pixel, so 256 px is already finer than the data
+        // and keeps the response ~5x smaller than 800 px for villages with 1000+ fields.
+        width: size,
+        height: size,
+        supersample: 1,
+        smooth: false,
+        gaussian_sigma: 1,
+      },
       signal,
-    );
-    const { values, failedFeatures } = settledValues(settled, chunks, { allowPartial: true });
-    return mergeIndexResults(values, chunks, failedFeatures);
-  }
-  return postJson(
-    "/multi/calculate/index",
-    {
-      geojson,
-      date,
-      index_name: indexName,
-      provider: "both",
-      satellite: "s2",
-      // One image per field: Sentinel-2 is 10 m/pixel, so 256 px is already finer than the data
-      // and keeps the response ~5x smaller than 800 px for villages with 1000+ fields.
-      width: size,
-      height: size,
-      supersample: 1,
-      smooth: false,
-      gaussian_sigma: 1,
-    },
+    ),
     signal,
   );
+  const { ok, failedFeatures } = settledParts(parts);
+  return mergeIndexResults(ok, failedFeatures, geojson.features.length);
 }
 
 // ---- Single-farm analysis (Farm Report) -----------------------------------
