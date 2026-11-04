@@ -25,6 +25,39 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
+/**
+ * Backoff before each retry. The village-boundary service runs on Cloud Run and can take ~10 s
+ * to answer its first request after an idle period, so a single timeout should not break the picker.
+ */
+const RETRY_DELAYS_MS = [1_000, 3_000];
+
+function isRetryable(error, signal) {
+  if (signal?.aborted || error?.name === "AbortError") return false;
+  if (error?.status != null) return error.status === 408 || error.status === 429 || error.status >= 500;
+  return true; // network failure or our own timeout
+}
+
+async function withRetry(run, signal) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      if (attempt >= RETRY_DELAYS_MS.length || !isRetryable(error, signal)) throw error;
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(resolve, RETRY_DELAYS_MS[attempt]);
+        signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+          },
+          { once: true },
+        );
+      });
+    }
+  }
+}
+
 /** FastAPI returns `detail` as a string, or as a list of validation errors (422). */
 async function errorDetail(res) {
   try {
@@ -45,27 +78,35 @@ async function errorDetail(res) {
  */
 export async function fetchVillageBoundary(lat, lng, level = "village", { signal } = {}) {
   const params = new URLSearchParams({ lat: String(lat), lng: String(lng), level });
-  const res = await fetchWithTimeout(`${VILLAGE_BOUNDARY_API_ORIGIN}/boundary/?${params}`, {
-    timeoutMs: VILLAGE_FETCH_MS,
-    signal,
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Village boundary: ${await errorDetail(res)}`);
-  return res.json();
+  return withRetry(async () => {
+    const res = await fetchWithTimeout(`${VILLAGE_BOUNDARY_API_ORIGIN}/boundary/?${params}`, {
+      timeoutMs: VILLAGE_FETCH_MS,
+      signal,
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      const error = new Error(`Village boundary: ${await errorDetail(res)}`);
+      error.status = res.status;
+      throw error;
+    }
+    return res.json();
+  }, signal);
 }
 
 async function fetchLocations(path, params, { signal } = {}) {
   const query = params ? `?${new URLSearchParams(params)}` : "";
-  const res = await fetchWithTimeout(`${VILLAGE_BOUNDARY_API_ORIGIN}/locations/${path}${query}`, {
-    timeoutMs: VILLAGE_FETCH_MS,
-    signal,
-  });
-  if (!res.ok) {
-    const error = new Error(await errorDetail(res));
-    error.status = res.status;
-    throw error;
-  }
-  return res.json();
+  return withRetry(async () => {
+    const res = await fetchWithTimeout(`${VILLAGE_BOUNDARY_API_ORIGIN}/locations/${path}${query}`, {
+      timeoutMs: VILLAGE_FETCH_MS,
+      signal,
+    });
+    if (!res.ok) {
+      const error = new Error(await errorDetail(res));
+      error.status = res.status;
+      throw error;
+    }
+    return res.json();
+  }, signal);
 }
 
 /** @returns {Promise<Array<{ name: string, display_name: string, taluka_count: number, village_count: number }>>} */

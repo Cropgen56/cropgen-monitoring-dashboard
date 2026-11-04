@@ -56,6 +56,22 @@ function parseSseBlock(block) {
   return data ? JSON.parse(data) : null;
 }
 
+/**
+ * The service reports yield per hectare (`predicted_yield_t_per_ha`) and the field area. The UI
+ * shows whole-field tonnes, so derive `estimated_yield_tonnes` when the service does not send it.
+ */
+function withEstimatedYieldTonnes(prediction) {
+  const yieldPrediction = prediction.yield_prediction;
+  if (!yieldPrediction || yieldPrediction.estimated_yield_tonnes != null) return prediction;
+  const perHectare = Number(yieldPrediction.predicted_yield_t_per_ha);
+  const areaHa = Number(yieldPrediction.area_ha ?? prediction.area_ha);
+  if (!Number.isFinite(perHectare) || !Number.isFinite(areaHa)) return prediction;
+  return {
+    ...prediction,
+    yield_prediction: { ...yieldPrediction, estimated_yield_tonnes: perHectare * areaHa },
+  };
+}
+
 export function fieldPredictionsById(response) {
   const payload = response?.result ?? response?.data ?? response;
   const predictions =
@@ -70,7 +86,7 @@ export function fieldPredictionsById(response) {
       .filter((prediction) => prediction && typeof prediction === "object")
       .map((prediction) => [
         String(prediction.field_id ?? prediction.id ?? ""),
-        {
+        withEstimatedYieldTonnes({
           ...prediction,
           best_crop:
             prediction.best_crop ??
@@ -80,7 +96,7 @@ export function fieldPredictionsById(response) {
             prediction.classification ??
             prediction.yield_prediction?.crop ??
             null,
-        },
+        }),
       ])
       .filter(([fieldId, prediction]) => fieldId && (
         prediction.best_crop || prediction.yield_prediction

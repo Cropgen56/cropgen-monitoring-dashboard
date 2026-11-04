@@ -43,6 +43,8 @@ export default function CropClassificationInsights({ insights, predictions, vill
   const cropMix = insights.cropMix.length ? insights.cropMix : classifiedCrops;
   const cropCountTotal = cropMix.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
   const temporalPeriod = insights.temporalPeriod;
+  const mappedFieldCount = Object.keys(predictions || {}).length;
+  const satelliteReady = ["available", "complete"].includes(insights.satelliteStatus);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-lime-300/15 bg-gradient-to-br from-[#111a17] via-[#101820] to-[#111820] shadow-xl shadow-black/20">
@@ -62,7 +64,7 @@ export default function CropClassificationInsights({ insights, predictions, vill
           )}
         </div>
         <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
-          insights.satelliteStatus === "available"
+          satelliteReady
             ? "border-emerald-300/20 bg-emerald-300/[0.08] text-emerald-200"
             : "border-amber-300/20 bg-amber-300/[0.08] text-amber-100"
         }`}>
@@ -83,7 +85,7 @@ export default function CropClassificationInsights({ insights, predictions, vill
         <InsightMetric
           label="Fields analyzed"
           value={formatNumber(insights.fieldCount)}
-          note={`${formatNumber(insights.satelliteFieldCount)} with satellite matches`}
+          note={`${formatNumber(insights.satelliteFieldCount)} with satellite matches · ${formatNumber(mappedFieldCount)} mapped to a field`}
           icon={BarChart3}
         />
         <InsightMetric
