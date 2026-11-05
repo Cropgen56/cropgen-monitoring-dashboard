@@ -133,10 +133,11 @@ export function DetectedFieldsTable({
           <th className={`${thCls} text-right`}>Perimeter (m)</th>
           <th className={thCls}>Classified crop</th>
           <th className={`${thCls} text-right`}>Yield deficit</th>
+          <th className={`${thCls} text-right`}>Yield (t)</th>
         </tr>
       </thead>
       <tbody>
-        {rows.length === 0 && <EmptyRow colSpan={7}>{EMPTY_HINT}</EmptyRow>}
+        {rows.length === 0 && <EmptyRow colSpan={8}>{EMPTY_HINT}</EmptyRow>}
         {rows.slice(0, MAX_FIELD_ROWS).map(({ key, detectionId, feature, village, p }) => {
           const ha = Number(p.area_ha) || 0;
           const prediction = detectionId === String(classificationDetectionId)
@@ -146,6 +147,9 @@ export function DetectedFieldsTable({
           const yieldDeficit = yieldPrediction?.yield_deficit_pct == null
             ? NaN
             : Number(yieldPrediction.yield_deficit_pct);
+          const estimatedYield = yieldPrediction?.estimated_yield_tonnes == null
+            ? NaN
+            : Number(yieldPrediction.estimated_yield_tonnes);
           return (
             <tr
               key={key}
@@ -179,6 +183,9 @@ export function DetectedFieldsTable({
               </td>
               <td className={`${tdCls} text-right tabular-nums text-gray-300`}>
                 {Number.isFinite(yieldDeficit) ? `${yieldDeficit.toFixed(1)}%` : "—"}
+              </td>
+              <td className={`${tdCls} text-right tabular-nums text-gray-300`}>
+                {Number.isFinite(estimatedYield) ? estimatedYield.toFixed(2) : "—"}
               </td>
             </tr>
           );
