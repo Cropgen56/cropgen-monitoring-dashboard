@@ -62,13 +62,27 @@ function parseSseBlock(block) {
  */
 function withEstimatedYieldTonnes(prediction) {
   const yieldPrediction = prediction.yield_prediction;
-  if (!yieldPrediction || yieldPrediction.estimated_yield_tonnes != null) return prediction;
-  const perHectare = Number(yieldPrediction.predicted_yield_t_per_ha);
-  const areaHa = Number(yieldPrediction.area_ha ?? prediction.area_ha);
-  if (!Number.isFinite(perHectare) || !Number.isFinite(areaHa)) return prediction;
+  if (!yieldPrediction) return prediction;
+  const finite = (value) => (value != null && Number.isFinite(Number(value)) ? Number(value) : null);
+  // Service versions name these differently: `predicted_yield_t_ha` / `_kg_ha` (live API),
+  // `predicted_yield_t_per_ha` (older payloads); `estimated_production_tonnes` for the total.
+  const kgPerHectare = finite(yieldPrediction.predicted_yield_kg_ha);
+  const perHectare =
+    finite(yieldPrediction.predicted_yield_t_per_ha) ??
+    finite(yieldPrediction.predicted_yield_t_ha) ??
+    (kgPerHectare == null ? null : kgPerHectare / 1000);
+  const areaHa = finite(yieldPrediction.area_ha ?? prediction.area_ha);
+  const tonnes =
+    finite(yieldPrediction.estimated_yield_tonnes) ??
+    finite(yieldPrediction.estimated_production_tonnes) ??
+    (perHectare != null && areaHa != null ? perHectare * areaHa : null);
   return {
     ...prediction,
-    yield_prediction: { ...yieldPrediction, estimated_yield_tonnes: perHectare * areaHa },
+    yield_prediction: {
+      ...yieldPrediction,
+      predicted_yield_t_per_ha: perHectare,
+      estimated_yield_tonnes: tonnes,
+    },
   };
 }
 

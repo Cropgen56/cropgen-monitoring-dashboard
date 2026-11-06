@@ -100,19 +100,25 @@ export function DetectedFieldsTable({
   fieldClassifications = {},
   classificationDetectionId = "",
 }) {
-  const rows = useMemo(
-    () =>
-      detections.flatMap((r) =>
-        r.fields.features.map((feature) => ({
-          key: `${r.id}:${feature.properties?.field_id}`,
-          detectionId: r.id,
-          feature,
-          village: r.village,
-          p: feature.properties || {},
-        })),
-      ),
-    [detections],
-  );
+  const rows = useMemo(() => {
+    const all = detections.flatMap((r) =>
+      r.fields.features.map((feature) => ({
+        key: `${r.id}:${feature.properties?.field_id}`,
+        detectionId: r.id,
+        feature,
+        village: r.village,
+        p: feature.properties || {},
+      })),
+    );
+    // Show the classified village's fields first: the table is capped at MAX_FIELD_ROWS, and
+    // otherwise its yield rows can sit past the cap, behind other villages' fields.
+    const active = String(classificationDetectionId || "");
+    if (!active) return all;
+    return [
+      ...all.filter((row) => String(row.detectionId) === active),
+      ...all.filter((row) => String(row.detectionId) !== active),
+    ];
+  }, [detections, classificationDetectionId]);
 
   return (
     <TableShell
@@ -133,11 +139,12 @@ export function DetectedFieldsTable({
           <th className={`${thCls} text-right`}>Perimeter (m)</th>
           <th className={thCls}>Classified crop</th>
           <th className={`${thCls} text-right`}>Yield deficit</th>
+          <th className={`${thCls} text-right`}>Yield (t/ha)</th>
           <th className={`${thCls} text-right`}>Yield (t)</th>
         </tr>
       </thead>
       <tbody>
-        {rows.length === 0 && <EmptyRow colSpan={8}>{EMPTY_HINT}</EmptyRow>}
+        {rows.length === 0 && <EmptyRow colSpan={9}>{EMPTY_HINT}</EmptyRow>}
         {rows.slice(0, MAX_FIELD_ROWS).map(({ key, detectionId, feature, village, p }) => {
           const ha = Number(p.area_ha) || 0;
           const prediction = detectionId === String(classificationDetectionId)
@@ -147,9 +154,13 @@ export function DetectedFieldsTable({
           const yieldDeficit = yieldPrediction?.yield_deficit_pct == null
             ? NaN
             : Number(yieldPrediction.yield_deficit_pct);
-          const estimatedYield = yieldPrediction?.estimated_yield_tonnes == null
+          const yieldPerHa = yieldPrediction?.predicted_yield_t_per_ha == null
             ? NaN
-            : Number(yieldPrediction.estimated_yield_tonnes);
+            : Number(yieldPrediction.predicted_yield_t_per_ha);
+          // fieldPredictionsById normalizes t/ha and total tonnes; fall back to t/ha × field area.
+          const estimatedYield = yieldPrediction?.estimated_yield_tonnes != null
+            ? Number(yieldPrediction.estimated_yield_tonnes)
+            : yieldPerHa * ha;
           return (
             <tr
               key={key}
@@ -183,6 +194,9 @@ export function DetectedFieldsTable({
               </td>
               <td className={`${tdCls} text-right tabular-nums text-gray-300`}>
                 {Number.isFinite(yieldDeficit) ? `${yieldDeficit.toFixed(1)}%` : "—"}
+              </td>
+              <td className={`${tdCls} text-right tabular-nums text-gray-300`}>
+                {Number.isFinite(yieldPerHa) ? yieldPerHa.toFixed(2) : "—"}
               </td>
               <td className={`${tdCls} text-right tabular-nums text-gray-300`}>
                 {Number.isFinite(estimatedYield) ? estimatedYield.toFixed(2) : "—"}
